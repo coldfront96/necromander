@@ -96,6 +96,58 @@ also has a deep Mage tree to fall back on.) This single rule is what makes
 "any road could lead to a powerful character" mathematically true while keeping
 balance tractable.
 
+### 3.5 Ability Loadouts (active slots)
+
+Investing in an Aspect *unlocks* abilities into your **known pool** — it does
+not auto-equip them. The hotbar is a **limited set of active slots**, and the
+player chooses which known abilities to slot. This is the resolution to "do
+mixed Aspects replace or coexist?": **both — the player decides per build.**
+
+- All abilities from every Aspect tree you've invested in are *available*.
+- Only the ones you slot are *active* on your hotbar.
+- A mixed character can therefore **replace** their base hotbar entirely with
+  hybrid abilities, or keep a foundation of base-class staples and slot a few
+  hybrid tools — it's a loadout choice, not a forced swap.
+
+Loadout slots are a progression reward (see 3.7) — early characters have few
+slots and must commit; later characters wield broader kits. This is also the
+main PvP-balance lever: a capped slot count means breadth still has an
+opportunity cost even at max level.
+
+### 3.6 Respec
+
+Builds are meaningful and semi-permanent — you can't freely reshuffle every
+fight. Respeccing requires a **Respec Token**, obtained either:
+
+- **Purchased with gold** in the in-game shop (the standard, grind-friendly
+  path), or
+- **Bought in a real-money pack** (convenience monetization).
+
+Slotting/unslotting *active abilities* from your known pool is **free and
+unlimited** (that's the loadout in 3.5). A Respec Token is only needed to
+**re-allocate Aspect investment levels** — i.e. to change the underlying build,
+not the active kit. This keeps tactical flexibility free while making
+identity-level changes a deliberate, valued action.
+
+### 3.7 Level Cap & Ascension
+
+Two separate progression axes, so we can have a "forever game" that's still
+fair in PvP:
+
+- **Vertical cap: level 60.** High enough to fully deepen 2–3 Aspects *or*
+  spread across all 4 and taste every tree, so build exploration never hits a
+  wall too early. Crucially, **everyone tops out at the same active-power
+  ceiling** — PvP outcomes come from build and skill, not grind time.
+- **Ascension (post-60, infinite): horizontal only.** Past 60, continued play
+  earns Ascension ranks that grant **no raw stat power** — only horizontal
+  rewards: additional loadout slots (capped per season for PvP sanity),
+  cosmetics/prestige, account-wide unlocks, crafting materials, alternate
+  ability visuals. This satisfies "I hate low caps" with literally unlimited
+  progression while protecting balance.
+
+> 60 is a starting proposal, easily tuned. The firm design commitment is the
+> *split*: vertical power is capped; vanity/breadth progression is infinite.
+
 ## 4. Multiplayer Model
 
 - **Authoritative server.** The server owns the canonical game state (positions,
@@ -109,7 +161,12 @@ balance tractable.
   iterate without standing up dedicated infrastructure. The code is structured
   so the "server" can later become a headless dedicated build with no gameplay
   rewrite.
-- **Co-op first.** 2–4 player party dungeon runs are the target social loop.
+- **Co-op AND PvP.** Two social loops, both first-class:
+  - **Co-op** — 2–4 player party dungeon runs (the primary, build-expressive loop).
+  - **PvP** — competitive arenas where the level-60 power cap (3.7) and the
+    capped active-slot count (3.5) keep matches about build + skill, not grind.
+    The same server-authoritative model that prevents PvE cheating is what makes
+    fair PvP possible at all.
 
 See `scripts/autoload/NetworkManager.gd`.
 
@@ -130,13 +187,23 @@ See `scripts/autoload/NetworkManager.gd`.
 - **v0.4:** Loot + persistence (local save, then server-side).
 - **v0.5:** Procedural dungeon generation.
 
-## 7. Open Questions (to revisit)
+## 7. Resolved Decisions
 
-- Do mixed Aspects *replace* base abilities or *coexist* as separate hotbars?
-  (Leaning coexist — strengthens the "toolkit breadth" pillar.)
-- Respec policy — permanent choices (roguelike weight) vs. flexible loadouts?
-- Is there a level cap, or infinite scaling with prestige?
-- PvP at all, or strictly co-op PvE?
+- **Mixed Aspects: replace or coexist?** → *Player's choice via loadouts* (3.5).
+  Known pool is unlimited; active hotbar slots are limited and freely re-slotted.
+- **Respec policy?** → *Semi-permanent* (3.6). Re-allocating Aspect levels needs
+  a Respec Token (gold in shop, or real-money pack). Swapping active abilities is
+  free.
+- **Level cap?** → *Vertical cap 60; infinite horizontal Ascension* (3.7).
+- **PvP?** → *Yes — both co-op and PvP* (section 4).
+
+## 8. Still Open (to revisit)
+
+- Exact number of base active-slot count and the per-Ascension slot drip.
+- PvP format(s): arena/duels, ranked seasons, objective modes?
+- Real-money monetization scope beyond Respec Tokens (cosmetics only? battle pass?).
+- Death/penalty model in dungeons (roguelike extraction risk vs. forgiving).
+- Season/reset cadence for Ascension horizontal rewards.
 
 ---
 

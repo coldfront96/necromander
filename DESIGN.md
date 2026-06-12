@@ -211,7 +211,8 @@ See `scripts/autoload/NetworkManager.gd`.
 - **v0.1:** Live "deepen vs mix" class preview + derived loadout system
   (known-pool from build, limited active slots) + soft-cap diminishing-power
   model (no hard cap). ✅
-- **v0.2:** Networked shared dungeon room with synced player avatars.
+- **v0.2:** Networked shared dungeon room with synced player avatars —
+  server-authoritative movement, touch joystick, host-started runs. ✅
 - **v0.3:** Combat prototype (one ability per base class), server-authoritative.
 - **v0.4:** Loot + persistence (local save, then server-side).
 - **v0.5:** Procedural dungeon generation.

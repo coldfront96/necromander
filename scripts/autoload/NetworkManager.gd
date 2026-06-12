@@ -12,9 +12,11 @@ signal connection_failed(reason: String)
 signal server_started(port: int)
 signal player_joined(peer_id: int, info: Dictionary)
 signal player_left(peer_id: int)
+signal game_started()
 
 const DEFAULT_PORT := 8910
 const MAX_PLAYERS := 4
+const GAME_SCENE := "res://scenes/game/DungeonRoom.tscn"
 
 ## peer_id -> { name, race, class_title, aspect_set, ready }
 var players: Dictionary = {}
@@ -132,6 +134,17 @@ func set_ready(value: bool) -> void:
 		_apply_ready(local_id(), value)
 	else:
 		_request_ready.rpc_id(1, local_id(), value)
+
+# ---------------------------------------------------------------- start game
+## Host launches the party into the shared room; every peer loads it in lockstep.
+func start_game() -> void:
+	if is_server():
+		_load_game.rpc()
+
+@rpc("authority", "call_local", "reliable")
+func _load_game() -> void:
+	game_started.emit()
+	get_tree().change_scene_to_file(GAME_SCENE)
 
 @rpc("any_peer", "call_remote", "reliable")
 func _request_ready(peer_id: int, value: bool) -> void:

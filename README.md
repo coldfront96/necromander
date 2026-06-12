@@ -39,10 +39,12 @@ scenes/
 
 ### Try multiplayer locally
 
-- Run one instance, **Host** a lobby.
-- Use Godot's *Debug → Run Multiple Instances* (or launch a second copy),
-  create a character, then **Join** `127.0.0.1`.
-- Watch the roster sync across both windows.
+- Enable Godot's *Debug → Run Multiple Instances* (set 2 instances).
+- In window A: create a character → **Host** a lobby.
+- In window B: create a character → **Join** `127.0.0.1`.
+- Watch the roster sync. Then in the host window press **Start Run (host)** —
+  both clients load the shared **Dungeon Room** and can move around with the
+  on-screen stick (or arrow keys) while the server keeps everyone in sync.
 
 ## Status
 

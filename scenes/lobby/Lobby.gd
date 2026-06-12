@@ -12,6 +12,7 @@ var host_button: Button
 var join_button: Button
 var leave_button: Button
 var ready_button: Button
+var start_button: Button
 
 func _ready() -> void:
 	var bg := ColorRect.new()
@@ -92,6 +93,10 @@ func _ready() -> void:
 	ready_button = _btn("Toggle Ready", _on_ready)
 	col.add_child(ready_button)
 
+	start_button = _btn("Start Run (host)", func(): NetworkManager.start_game())
+	start_button.add_theme_color_override("font_color", Color(0.42, 1.0, 0.81))
+	col.add_child(start_button)
+
 	var back := _btn("Back to Menu", func(): _on_leave(); get_tree().change_scene_to_file(MAIN_MENU))
 	col.add_child(back)
 
@@ -159,6 +164,9 @@ func _update_buttons() -> void:
 	join_button.disabled = active
 	leave_button.disabled = not active
 	ready_button.disabled = not active
+	# Only the host can start the run, and only once connected.
+	start_button.visible = NetworkManager.is_server()
+	start_button.disabled = not active
 
 func _set_status(text: String) -> void:
 	status_label.text = text

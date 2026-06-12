@@ -79,3 +79,65 @@ func level_up_options(build: CharacterBuild) -> Array:
 			"result": preview_invest(build, id),
 		})
 	return options
+
+# ================================================================ loadouts
+# The KNOWN ability pool is derived, not stored: any class entry whose required
+# Aspects are all present in the build contributes its abilities, gated by the
+# player's tier in those Aspects. Ability tier == its index in the class list
+# (1st = Tier 1, ...). So a Mage who dips Divine automatically begins knowing
+# the Tier-1 Necromancer ability. See DESIGN.md 3.5.
+
+## Player's tier within a specific class entry = the MINIMUM investment among
+## that entry's required Aspects (mirrors the hybrid-tier rule, DESIGN.md 3.4).
+func _entry_tier(build: CharacterBuild, required: Array) -> int:
+	var lowest := 1 << 30
+	for aspect_id in required:
+		lowest = min(lowest, build.level_in(aspect_id))
+	return lowest if lowest != (1 << 30) else 0
+
+func _build_has_all(build: CharacterBuild, required: Array) -> bool:
+	for aspect_id in required:
+		if not build.has_aspect(aspect_id):
+			return false
+	return true
+
+## Every ability the build currently knows, with its source class and tier.
+## Returns an Array of { name, tier, source_key, source_title }.
+func known_abilities(build: CharacterBuild) -> Array:
+	var out: Array = []
+	for key in classes.keys():
+		var required: Array = (key as String).split(",")
+		if not _build_has_all(build, required):
+			continue
+		var tier := _entry_tier(build, required)
+		if tier <= 0:
+			continue
+		var entry: Dictionary = classes[key]
+		var abilities: Array = entry.get("abilities", [])
+		for i in abilities.size():
+			if i + 1 <= tier:  # unlocked at this entry tier
+				out.append({
+					"name": abilities[i],
+					"tier": i + 1,
+					"source_key": key,
+					"source_title": entry.get("title", key),
+				})
+	return out
+
+func known_ability_names(build: CharacterBuild) -> Array:
+	var names: Array = []
+	for a in known_abilities(build):
+		names.append(a["name"])
+	return names
+
+## Drop any equipped abilities the build no longer knows (e.g. after a respec).
+## Returns the number of abilities removed.
+func prune_loadout(build: CharacterBuild) -> int:
+	var known := known_ability_names(build)
+	var kept: Array = []
+	for n in build.loadout:
+		if known.has(n):
+			kept.append(n)
+	var removed := build.loadout.size() - kept.size()
+	build.loadout = kept
+	return removed

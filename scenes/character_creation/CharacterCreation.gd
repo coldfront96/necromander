@@ -5,7 +5,7 @@ extends Control
 ## The emergent class title updates live (DESIGN.md 3.2–3.4).
 
 const MAIN_MENU := "res://scenes/main_menu/MainMenu.tscn"
-const LOBBY := "res://scenes/lobby/Lobby.tscn"
+const LOADOUT := "res://scenes/loadout/Loadout.tscn"
 const RACES := ["Human", "Elf", "Dwarf", "Orc", "Halfling", "Tiefling"]
 
 var build: CharacterBuild
@@ -100,7 +100,7 @@ func _ready() -> void:
 
 	# --- Footer actions
 	confirm_button = Button.new()
-	confirm_button.text = "Confirm & Enter Lobby"
+	confirm_button.text = "Confirm & Choose Abilities"
 	confirm_button.custom_minimum_size = Vector2(0, 56)
 	confirm_button.pressed.connect(_on_confirm)
 	col.add_child(confirm_button)
@@ -140,6 +140,13 @@ func _rebuild_options(has_started: bool) -> void:
 	for child in options_box.get_children():
 		child.queue_free()
 
+	# At the vertical cap, no more aspect investment — only Ascension (post-cap).
+	if build.at_level_cap():
+		var capped := _label("Level cap (%d) reached — further growth is Ascension only (DESIGN.md 3.7)." % CharacterBuild.LEVEL_CAP)
+		capped.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
+		options_box.add_child(capped)
+		return
+
 	var candidate_ids: Array
 	if not has_started:
 		candidate_ids = ClassSystem.starting_aspects()
@@ -168,7 +175,7 @@ func _on_confirm() -> void:
 	if build.character_name.strip_edges() == "":
 		build.character_name = "Adventurer"
 	GameState.set_character(build)
-	get_tree().change_scene_to_file(LOBBY)
+	get_tree().change_scene_to_file(LOADOUT)
 
 # ---------------------------------------------------------------- ui helpers
 func _aspect_breakdown() -> String:

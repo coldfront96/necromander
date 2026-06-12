@@ -10,6 +10,48 @@ extends Resource
 ## Aspect ID (e.g. "ARCANE") -> levels invested. The heart of the build.
 @export var aspect_levels: Dictionary = {}
 
+## Ability names the player has chosen to keep ACTIVE on the hotbar. The pool of
+## *known* abilities is derived from the build (ClassSystem.known_abilities);
+## this is just the equipped subset. See DESIGN.md 3.5.
+@export var loadout: Array = []
+
+## Infinite, horizontal post-cap progression (paragon-style). Grants loadout
+## slots (capped) and cosmetics — never raw power. See DESIGN.md 3.7.
+@export var ascension_rank: int = 0
+
+## Vertical level cap. Past this, only Ascension rank grows.
+const LEVEL_CAP := 60
+const BASE_SLOTS := 3
+## PvP-sanity ceiling on how many extra slots Ascension can ever grant.
+const MAX_ASCENSION_SLOTS := 4
+
+## True once the character has hit the vertical cap and can only Ascend further.
+func at_level_cap() -> bool:
+	return total_level() >= LEVEL_CAP
+
+## How many abilities may be active at once. Grows slowly with level, plus a
+## capped contribution from Ascension. Tunable — see DESIGN.md 3.7.
+func max_loadout_slots() -> int:
+	var capped_level := min(total_level(), LEVEL_CAP)
+	var from_levels := int(capped_level / 10)            # +1 every 10 levels (0..6)
+	var from_ascension := min(int(ascension_rank / 2), MAX_ASCENSION_SLOTS)
+	return BASE_SLOTS + from_levels + from_ascension
+
+func is_equipped(ability_name: String) -> bool:
+	return loadout.has(ability_name)
+
+## Equip an ability into an active slot. Returns false if slots are full.
+func equip(ability_name: String) -> bool:
+	if is_equipped(ability_name):
+		return true
+	if loadout.size() >= max_loadout_slots():
+		return false
+	loadout.append(ability_name)
+	return true
+
+func unequip(ability_name: String) -> void:
+	loadout.erase(ability_name)
+
 ## Total character level == sum of all aspect investments.
 func total_level() -> int:
 	var sum := 0
@@ -53,6 +95,8 @@ func duplicate_build() -> CharacterBuild:
 	copy.character_name = character_name
 	copy.race = race
 	copy.aspect_levels = aspect_levels.duplicate(true)
+	copy.loadout = loadout.duplicate()
+	copy.ascension_rank = ascension_rank
 	return copy
 
 func to_dict() -> Dictionary:
@@ -60,6 +104,8 @@ func to_dict() -> Dictionary:
 		"character_name": character_name,
 		"race": race,
 		"aspect_levels": aspect_levels.duplicate(true),
+		"loadout": loadout.duplicate(),
+		"ascension_rank": ascension_rank,
 	}
 
 static func from_dict(d: Dictionary) -> CharacterBuild:
@@ -67,4 +113,6 @@ static func from_dict(d: Dictionary) -> CharacterBuild:
 	b.character_name = d.get("character_name", "Unnamed")
 	b.race = d.get("race", "Human")
 	b.aspect_levels = (d.get("aspect_levels", {}) as Dictionary).duplicate(true)
+	b.loadout = (d.get("loadout", []) as Array).duplicate()
+	b.ascension_rank = int(d.get("ascension_rank", 0))
 	return b

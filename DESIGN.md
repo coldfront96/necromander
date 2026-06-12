@@ -181,7 +181,8 @@ See `scripts/autoload/NetworkManager.gd`.
 
 - **v0 (this baseline):** project scaffold, class-mixing engine + tests-by-play,
   character creation screen, host/join lobby over ENet. ✅
-- **v0.1:** Confirm level-up "deepen vs mix" UI with live class-title preview.
+- **v0.1:** Live "deepen vs mix" class preview + derived loadout system
+  (known-pool from build, limited active slots, level-60 cap). ✅
 - **v0.2:** Networked shared dungeon room with synced player avatars.
 - **v0.3:** Combat prototype (one ability per base class), server-authoritative.
 - **v0.4:** Loot + persistence (local save, then server-side).

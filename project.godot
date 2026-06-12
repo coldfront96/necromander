@@ -1,0 +1,32 @@
+; Engine configuration file.
+; Necromander — mobile-first multiplayer RPG dungeon crawler.
+; Edit with care; this file is regenerated/extended by the Godot editor.
+
+config_version=5
+
+[application]
+
+config/name="Necromander"
+config/description="A mobile-first multiplayer RPG dungeon crawler with a data-driven class-mixing builder."
+run/main_scene="res://scenes/main_menu/MainMenu.tscn"
+config/features=PackedStringArray("4.3", "Mobile")
+config/icon="res://icon.svg"
+
+[autoload]
+
+GameState="*res://scripts/autoload/GameState.gd"
+ClassSystem="*res://scripts/autoload/ClassSystem.gd"
+NetworkManager="*res://scripts/autoload/NetworkManager.gd"
+
+[display]
+
+window/size/viewport_width=720
+window/size/viewport_height=1280
+window/handheld/orientation=1
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+
+[rendering]
+
+renderer/rendering_method="mobile"
+renderer/rendering_method.mobile="mobile"

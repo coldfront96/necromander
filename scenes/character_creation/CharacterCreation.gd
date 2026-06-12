@@ -122,7 +122,7 @@ func _refresh() -> void:
 		tagline_label.text = c["tagline"]
 		tier_label.text = "Hybrid tier: %d   ·   Path: %s" % [
 			c["tier"], " + ".join(_pretty_aspects(c["aspect_set"]))]
-		aspect_lines.text = _aspect_breakdown()
+		aspect_lines.text = _aspect_breakdown() + "\n" + _power_line()
 		abilities_label.text = "Abilities: " + (", ".join(c["abilities"]) if not c["abilities"].is_empty() else "—")
 	else:
 		class_label.text = "Wanderer"
@@ -140,12 +140,12 @@ func _rebuild_options(has_started: bool) -> void:
 	for child in options_box.get_children():
 		child.queue_free()
 
-	# At the vertical cap, no more aspect investment — only Ascension (post-cap).
-	if build.at_level_cap():
-		var capped := _label("Level cap (%d) reached — further growth is Ascension only (DESIGN.md 3.7)." % CharacterBuild.LEVEL_CAP)
-		capped.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
-		options_box.add_child(capped)
-		return
+	# No hard cap — leveling continues forever (DESIGN.md 3.7). Past the soft cap
+	# we just note that raw level power has mostly flattened.
+	if build.past_soft_cap():
+		var note := _label("Past soft cap (%d): each level now adds little raw power — lean on gear, build synergy & Ascension." % CharacterBuild.LEVEL_SOFT_CAP)
+		note.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
+		options_box.add_child(note)
 
 	var candidate_ids: Array
 	if not has_started:
@@ -183,6 +183,11 @@ func _aspect_breakdown() -> String:
 	for id in build.aspect_set():
 		parts.append("%s %d" % [ClassSystem.aspect_display(id), build.level_in(id)])
 	return "Investments:  " + ("   ".join(parts) if not parts.is_empty() else "—")
+
+func _power_line() -> String:
+	var pct := int(round(build.level_power_ratio() * 100.0))
+	return "Level power: %d  (%d%% of the curve spent — flattens as you climb)" % [
+		int(build.level_power()), pct]
 
 func _pretty_aspects(ids: Array) -> Array:
 	var out: Array = []

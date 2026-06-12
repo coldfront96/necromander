@@ -129,24 +129,32 @@ unlimited** (that's the loadout in 3.5). A Respec Token is only needed to
 not the active kit. This keeps tactical flexibility free while making
 identity-level changes a deliberate, valued action.
 
-### 3.7 Level Cap & Ascension
+### 3.7 Soft Cap & Ascension (no hard level cap)
 
-Two separate progression axes, so we can have a "forever game" that's still
-fair in PvP:
+There is **no hard level cap.** Instead we use a **soft cap via diminishing
+returns** — inspired by idle/looter progression (e.g. LootFiend) — so the player
+can level forever, but raw level power flattens and other systems take over.
 
-- **Vertical cap: level 60.** High enough to fully deepen 2–3 Aspects *or*
-  spread across all 4 and taste every tree, so build exploration never hits a
-  wall too early. Crucially, **everyone tops out at the same active-power
-  ceiling** — PvP outcomes come from build and skill, not grind time.
-- **Ascension (post-60, infinite): horizontal only.** Past 60, continued play
-  earns Ascension ranks that grant **no raw stat power** — only horizontal
-  rewards: additional loadout slots (capped per season for PvP sanity),
-  cosmetics/prestige, account-wide unlocks, crafting materials, alternate
-  ability visuals. This satisfies "I hate low caps" with literally unlimited
-  progression while protecting balance.
+- **Diminishing level power.** A level's contribution to raw stats follows an
+  asymptotic curve (`level_power()` in `CharacterBuild`): big gains early,
+  flattening toward a ceiling (`LEVEL_POWER_MAX`). Levels matter *a lot* at first
+  and quickly get **outshined by other power axes** — gear, build synergy, set
+  bonuses, Ascension. By the **soft cap (~level 100)** the curve is ~95% spent.
+  - *Why this is PvP-safe:* no amount of grinding pushes the level term past the
+    ceiling, so a level-500 and a level-150 are close in raw power. Fights are
+    decided by build, gear, and skill — not playtime.
+  - *Honest caveat:* "outshined by other systems" only bites once those systems
+    exist (gear, sets, crafting). Until then, level is still the main axis — the
+    curve is correct now, the payoff grows as we add the lateral systems.
+- **Ascension (infinite, horizontal only).** Continued leveling/Ascension grants
+  **no raw stat power** — only horizontal rewards: additional loadout slots
+  (capped, for PvP sanity), cosmetics/prestige, account-wide unlocks, crafting
+  materials, alternate ability visuals. This is the paragon-style "forever ding"
+  without the paragon power-creep problem.
 
-> 60 is a starting proposal, easily tuned. The firm design commitment is the
-> *split*: vertical power is capped; vanity/breadth progression is infinite.
+> The curve constants (`LEVEL_POWER_MAX`, `LEVEL_POWER_FALLOFF`, `LEVEL_SOFT_CAP`)
+> are all tunable. The firm commitment: **vertical power asymptotes; breadth and
+> vanity are infinite.** Level is a fast on-ramp, not the endgame engine.
 
 ## 4. Multiplayer Model
 
@@ -182,7 +190,8 @@ See `scripts/autoload/NetworkManager.gd`.
 - **v0 (this baseline):** project scaffold, class-mixing engine + tests-by-play,
   character creation screen, host/join lobby over ENet. ✅
 - **v0.1:** Live "deepen vs mix" class preview + derived loadout system
-  (known-pool from build, limited active slots, level-60 cap). ✅
+  (known-pool from build, limited active slots) + soft-cap diminishing-power
+  model (no hard cap). ✅
 - **v0.2:** Networked shared dungeon room with synced player avatars.
 - **v0.3:** Combat prototype (one ability per base class), server-authoritative.
 - **v0.4:** Loot + persistence (local save, then server-side).
@@ -195,7 +204,10 @@ See `scripts/autoload/NetworkManager.gd`.
 - **Respec policy?** → *Semi-permanent* (3.6). Re-allocating Aspect levels needs
   a Respec Token (gold in shop, or real-money pack). Swapping active abilities is
   free.
-- **Level cap?** → *Vertical cap 60; infinite horizontal Ascension* (3.7).
+- **Level cap?** → *No hard cap. Soft cap via diminishing level-power (~Lv 100);
+  raw power asymptotes while gear/synergy/Ascension take over* (3.7).
+- **Mixing: automatic or opt-in?** → *Automatic.* The hybrid identity emerges
+  the moment you hold the required Aspects — no extra confirmation step (3.3).
 - **PvP?** → *Yes — both co-op and PvP* (section 4).
 
 ## 8. Still Open (to revisit)

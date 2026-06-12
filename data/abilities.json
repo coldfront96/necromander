@@ -1,0 +1,24 @@
+{
+  "_comment": "Combat definitions per ability name (matches names in combinations.json). Any ability without an entry falls back to ClassSystem.DEFAULT_ABILITY. kinds: projectile | melee | nova (aoe around caster) | heal (self) | drain (damage + self-heal). power = damage or heal; range in px; cooldown in seconds; radius for nova.",
+  "abilities": {
+    "Cleave":         { "kind": "melee",      "power": 16, "range": 110, "cooldown": 0.9 },
+    "Bulwark":        { "kind": "heal",       "power": 14, "range": 0,   "cooldown": 6.0 },
+    "Rend":           { "kind": "melee",      "power": 11, "range": 100, "cooldown": 1.4 },
+
+    "Aimed Shot":     { "kind": "projectile", "power": 18, "range": 440, "cooldown": 1.4 },
+    "Snare Trap":     { "kind": "projectile", "power": 8,  "range": 300, "cooldown": 3.0 },
+    "Volley":         { "kind": "nova",       "power": 9,  "range": 0,   "cooldown": 4.0, "radius": 150 },
+
+    "Arcane Bolt":    { "kind": "projectile", "power": 13, "range": 400, "cooldown": 0.9 },
+    "Blink":          { "kind": "heal",       "power": 8,  "range": 0,   "cooldown": 5.0 },
+    "Frost Nova":     { "kind": "nova",       "power": 11, "range": 0,   "cooldown": 5.0, "radius": 140 },
+
+    "Smite":          { "kind": "projectile", "power": 14, "range": 360, "cooldown": 1.1 },
+    "Mend":           { "kind": "heal",       "power": 20, "range": 0,   "cooldown": 2.5 },
+    "Sanctuary":      { "kind": "heal",       "power": 12, "range": 0,   "cooldown": 6.0 },
+
+    "Raise Dead":     { "kind": "projectile", "power": 12, "range": 320, "cooldown": 1.0 },
+    "Soul Siphon":    { "kind": "drain",      "power": 12, "range": 340, "cooldown": 1.6 },
+    "Bone Armor":     { "kind": "heal",       "power": 16, "range": 0,   "cooldown": 7.0 }
+  }
+}

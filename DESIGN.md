@@ -213,7 +213,8 @@ See `scripts/autoload/NetworkManager.gd`.
   model (no hard cap). ✅
 - **v0.2:** Networked shared dungeon room with synced player avatars —
   server-authoritative movement, touch joystick, host-started runs. ✅
-- **v0.3:** Combat prototype (one ability per base class), server-authoritative.
+- **v0.3:** Combat prototype — server-authoritative casting, HP, target dummies,
+  data-driven abilities, touch hotbar, affinity applied to damage/heal. ✅
 - **v0.4:** Loot + persistence (local save, then server-side).
 - **v0.5:** Procedural dungeon generation.
 

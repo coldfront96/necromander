@@ -5,6 +5,10 @@ extends Node
 ## new combinations. See DESIGN.md section 3.
 
 const REGISTRY_PATH := "res://data/combinations.json"
+const ABILITIES_PATH := "res://data/abilities.json"
+
+## Fallback combat profile for any ability without an explicit definition.
+const DEFAULT_ABILITY := {"kind": "projectile", "power": 8.0, "range": 300.0, "cooldown": 1.2}
 
 ## Identity affinity: your chosen identity grants a small bonus to abilities
 ## drawn from its Aspects — real, but deliberately non-dominant so identity is a
@@ -13,23 +17,46 @@ const REGISTRY_PATH := "res://data/combinations.json"
 const AFFINITY_PER_TIER := 2  ## % bonus per identity tier
 const AFFINITY_CAP := 10      ## max % the affinity can ever reach
 
-var aspects: Dictionary = {}   # id -> { display, blurb, starting }
-var classes: Dictionary = {}   # combination_key -> { title, tagline, abilities }
+var aspects: Dictionary = {}    # id -> { display, blurb, starting }
+var classes: Dictionary = {}    # combination_key -> { title, tagline, abilities, affinity }
+var ability_defs: Dictionary = {}  # ability name -> { kind, power, range, cooldown, radius }
 
 func _ready() -> void:
 	_load_registry()
+	_load_abilities()
 
 func _load_registry() -> void:
-	var f := FileAccess.open(REGISTRY_PATH, FileAccess.READ)
-	if f == null:
-		push_error("ClassSystem: could not open %s" % REGISTRY_PATH)
-		return
-	var parsed: Variant = JSON.parse_string(f.get_as_text())
-	if typeof(parsed) != TYPE_DICTIONARY:
-		push_error("ClassSystem: registry is not a JSON object")
+	var parsed := _read_json(REGISTRY_PATH)
+	if parsed.is_empty():
 		return
 	aspects = parsed.get("aspects", {})
 	classes = parsed.get("classes", {})
+
+func _load_abilities() -> void:
+	var parsed := _read_json(ABILITIES_PATH)
+	ability_defs = parsed.get("abilities", {})
+
+func _read_json(path: String) -> Dictionary:
+	var f := FileAccess.open(path, FileAccess.READ)
+	if f == null:
+		push_error("ClassSystem: could not open %s" % path)
+		return {}
+	var parsed: Variant = JSON.parse_string(f.get_as_text())
+	if typeof(parsed) != TYPE_DICTIONARY:
+		push_error("ClassSystem: %s is not a JSON object" % path)
+		return {}
+	return parsed
+
+## Combat profile for an ability (falls back to DEFAULT_ABILITY).
+func ability_def(ability_name: String) -> Dictionary:
+	return ability_defs.get(ability_name, DEFAULT_ABILITY)
+
+## The class key whose ability list contains `ability_name` (for affinity scope).
+func ability_source_key(ability_name: String) -> String:
+	for key in classes.keys():
+		if (classes[key].get("abilities", []) as Array).has(ability_name):
+			return key
+	return ""
 
 ## The Aspects offered at character creation.
 func starting_aspects() -> Array:

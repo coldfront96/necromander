@@ -49,6 +49,8 @@ func _local_info() -> Dictionary:
 		"class_title": c.get("title", "Wanderer"),
 		"aspect_set": c.get("aspect_set", []),
 		"ready": false,
+		# Full build so the authoritative server can resolve combat (DESIGN.md 4).
+		"build": build.to_dict(),
 	}
 
 # ---------------------------------------------------------------- host / join

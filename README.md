@@ -45,6 +45,10 @@ scenes/
 - Watch the roster sync. Then in the host window press **Start Run (host)** —
   both clients load the shared **Dungeon Room** and can move around with the
   on-screen stick (or arrow keys) while the server keeps everyone in sync.
+- Tap an ability on the **hotbar** (built from your loadout) to fight the
+  **target dummies** — the server resolves damage/healing, applies your identity
+  affinity bonus, and broadcasts HP to everyone. Dummies hit back, so healing
+  abilities matter; downed players respawn.
 
 ## Status
 

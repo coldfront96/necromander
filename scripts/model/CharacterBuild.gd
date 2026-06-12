@@ -15,6 +15,12 @@ extends Resource
 ## this is just the equipped subset. See DESIGN.md 3.5.
 @export var loadout: Array = []
 
+## The class identity the player chooses to present as. Abilities unlock
+## automatically from your Aspects (the discovery), but WHO you are is your
+## choice — pick any class you qualify for. Empty = use the emergent default
+## (the most specific class your Aspects form). See DESIGN.md 3.3.
+@export var chosen_identity: String = ""
+
 ## Infinite, horizontal post-soft-cap progression (paragon-style). Grants loadout
 ## slots (capped) and cosmetics — never raw power. See DESIGN.md 3.7.
 @export var ascension_rank: int = 0
@@ -116,6 +122,7 @@ func duplicate_build() -> CharacterBuild:
 	copy.aspect_levels = aspect_levels.duplicate(true)
 	copy.loadout = loadout.duplicate()
 	copy.ascension_rank = ascension_rank
+	copy.chosen_identity = chosen_identity
 	return copy
 
 func to_dict() -> Dictionary:
@@ -125,6 +132,7 @@ func to_dict() -> Dictionary:
 		"aspect_levels": aspect_levels.duplicate(true),
 		"loadout": loadout.duplicate(),
 		"ascension_rank": ascension_rank,
+		"chosen_identity": chosen_identity,
 	}
 
 static func from_dict(d: Dictionary) -> CharacterBuild:
@@ -134,4 +142,5 @@ static func from_dict(d: Dictionary) -> CharacterBuild:
 	b.aspect_levels = (d.get("aspect_levels", {}) as Dictionary).duplicate(true)
 	b.loadout = (d.get("loadout", []) as Array).duplicate()
 	b.ascension_rank = int(d.get("ascension_rank", 0))
+	b.chosen_identity = d.get("chosen_identity", "")
 	return b

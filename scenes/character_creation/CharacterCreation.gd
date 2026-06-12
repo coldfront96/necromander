@@ -16,6 +16,8 @@ var tagline_label: Label
 var tier_label: Label
 var aspect_lines: Label
 var abilities_label: Label
+var identity_prompt: Label
+var identity_box: VBoxContainer
 var options_box: VBoxContainer
 var confirm_button: Button
 
@@ -85,6 +87,14 @@ func _ready() -> void:
 	abilities_label.add_theme_color_override("font_color", Color(0.42, 1.0, 0.81))
 	col.add_child(abilities_label)
 
+	# --- Identity picker: abilities unlock automatically, but WHO you are is your
+	# choice. Only shown once you qualify for more than one identity.
+	identity_prompt = _label("Identity (you choose who you are):")
+	col.add_child(identity_prompt)
+	identity_box = VBoxContainer.new()
+	identity_box.add_theme_constant_override("separation", 6)
+	col.add_child(identity_box)
+
 	col.add_child(_divider())
 
 	# --- The fork in the road
@@ -132,7 +142,44 @@ func _refresh() -> void:
 		abilities_label.text = ""
 
 	confirm_button.disabled = not has_started
+	_rebuild_identity()
 	_rebuild_options(has_started)
+
+## Identity picker. Abilities unlock automatically (the discovery); the player
+## chooses which class they present as. Hidden when there's no real choice yet.
+func _rebuild_identity() -> void:
+	for child in identity_box.get_children():
+		child.queue_free()
+	var identities := ClassSystem.qualifying_identities(build)
+	# Only a choice worth showing once you qualify for 2+ identities.
+	var show := identities.size() > 1
+	identity_prompt.visible = show
+	identity_box.visible = show
+	if not show:
+		return
+	var active := ClassSystem.active_identity_key(build)
+	for entry in identities:
+		var key: String = entry["key"]
+		var is_active := key == active
+		var btn := Button.new()
+		btn.toggle_mode = true
+		btn.button_pressed = is_active
+		btn.custom_minimum_size = Vector2(0, 44)
+		btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		var mark := "● " if is_active else "○ "
+		var tags := ""
+		if entry["aspects"] == 1:
+			tags += "  (base)"
+		if entry["is_default"]:
+			tags += "  ★ emergent"
+		btn.text = "%s%s%s" % [mark, entry["title"], tags]
+		btn.pressed.connect(func(): _choose_identity(key, entry["is_default"]))
+		identity_box.add_child(btn)
+
+func _choose_identity(key: String, is_default: bool) -> void:
+	# Selecting the emergent default clears the override so it keeps auto-tracking.
+	build.chosen_identity = "" if is_default else key
+	_refresh()
 
 ## Show every fork: at creation only the 3 starting Aspects; after that, every
 ## Aspect (deepen existing or mix new), each previewing the resulting class.

@@ -20,8 +20,9 @@ func _ready() -> void:
 		# No character to outfit — bounce to creation.
 		get_tree().change_scene_to_file(CHARACTER_CREATION)
 		return
-	# Keep the equipped set honest if the build changed since last visit.
+	# Keep the equipped set and chosen identity honest if the build changed.
 	ClassSystem.prune_loadout(build)
+	ClassSystem.prune_identity(build)
 
 	var bg := ColorRect.new()
 	bg.color = Color(0.09, 0.07, 0.13)

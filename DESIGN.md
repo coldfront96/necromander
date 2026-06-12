@@ -63,11 +63,28 @@ At each level-up the player either:
 - **Deepen** — add a level to an Aspect they already have, or
 - **Mix** — invest the level into a *new* Aspect.
 
-### 3.3 Emergent Class Identity
+### 3.3 Emergent Abilities, Chosen Identity
 
-Your **class title and ability trees are derived** from the *set* of Aspects
-present in your build, resolved against a data-driven combination registry
-(`data/combinations.json`).
+Two things come out of your Aspect set — and we deliberately handle them
+*differently*:
+
+- **Abilities unlock automatically.** The instant you hold the required Aspects
+  (at the required tier), the matching class's abilities appear in your known
+  pool. This is the discovery — splash one Divine level into a Mage and a
+  Necromancer ability *appears*. We never gate that behind a confirmation; it's
+  the soul of "any road could lead to power," and it costs nothing balance-wise
+  because the **loadout** (3.5) limits what's actually *active*.
+- **Identity is the player's choice.** Holding Arcane+Divine does **not** force
+  you to *be* a Necromancer. You choose which class you present as, from every
+  identity you qualify for (`chosen_identity`). It **defaults to the emergent
+  one** (the most specific class your Aspects form — what a fully-automatic
+  system would pick), so casual players never have to think about it, while a
+  deep Arcane mage who just wants one Divine utility can stay a "Mage."
+  Later, identity can carry a small affinity bonus, making it a meaningful but
+  never dominant choice.
+
+The combination registry is data-driven (`data/combinations.json`); adding a
+class or Aspect is a data change, not code.
 
 - **1 Aspect → Base Class**
   - MELEE → Warrior · RANGED → Hunter · ARCANE → Mage · DIVINE → Cleric
@@ -206,8 +223,9 @@ See `scripts/autoload/NetworkManager.gd`.
   free.
 - **Level cap?** → *No hard cap. Soft cap via diminishing level-power (~Lv 100);
   raw power asymptotes while gear/synergy/Ascension take over* (3.7).
-- **Mixing: automatic or opt-in?** → *Automatic.* The hybrid identity emerges
-  the moment you hold the required Aspects — no extra confirmation step (3.3).
+- **Mixing: automatic or opt-in?** → *Split (3.3).* Abilities unlock
+  automatically (the discovery); identity/title is the player's choice and
+  defaults to the emergent class, so it's zero-friction unless you want control.
 - **PvP?** → *Yes — both co-op and PvP* (section 4).
 
 ## 8. Still Open (to revisit)

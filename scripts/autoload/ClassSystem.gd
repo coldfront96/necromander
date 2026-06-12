@@ -41,28 +41,94 @@ func all_aspect_ids() -> Array:
 func aspect_display(id: String) -> String:
 	return (aspects.get(id, {}) as Dictionary).get("display", id)
 
-## Resolve the current class for a build. Returns a dictionary describing the
-## emergent identity, including tier and the next abilities unlocking.
+## Resolve the active class for a build. Abilities unlock automatically from the
+## build's Aspects, but the *identity* is the player's choice: their chosen
+## identity if still valid, otherwise the emergent default (the most specific
+## class their Aspects form). See DESIGN.md 3.3.
 func resolve(build: CharacterBuild) -> Dictionary:
-	var key := build.combination_key()
+	var key := active_identity_key(build)
 	var entry: Dictionary = classes.get(key, {})
-	var title: String = entry.get("title", "Wanderer")
-	var tier := build.hybrid_tier()
+	var req := _aspects_of(key)
+	var tier := _entry_tier(build, req) if not req.is_empty() else 0
 	return {
-		"title": title,
+		"title": entry.get("title", "Wanderer"),
 		"tagline": entry.get("tagline", "An undefined path."),
 		"abilities": entry.get("abilities", []),
 		"tier": tier,
-		"combination_key": key,
+		"identity_key": key,
 		"aspect_set": build.aspect_set(),
 		"is_known": classes.has(key),
 		"total_level": build.total_level(),
+		"is_default_identity": build.chosen_identity == "" or build.chosen_identity == _default_identity_key(build),
 	}
 
+## The class key the build presents as: the player's choice if still valid,
+## else the emergent default.
+func active_identity_key(build: CharacterBuild) -> String:
+	if build.aspect_levels.is_empty():
+		return ""
+	var chosen := build.chosen_identity
+	if chosen != "" and classes.has(chosen) and _build_has_all(build, _aspects_of(chosen)):
+		return chosen
+	return _default_identity_key(build)
+
+## The emergent default identity = the most specific registered class the build
+## qualifies for (most Aspects; tie-break highest tier). This is the same result
+## the old fully-automatic model produced.
+func _default_identity_key(build: CharacterBuild) -> String:
+	var best := ""
+	var best_size := 0
+	var best_tier := -1
+	for key in classes.keys():
+		var req := _aspects_of(key)
+		if not _build_has_all(build, req):
+			continue
+		var t := _entry_tier(build, req)
+		if t <= 0:
+			continue
+		var size := req.size()
+		if size > best_size or (size == best_size and t > best_tier):
+			best_size = size
+			best_tier = t
+			best = key
+	return best
+
+## Every class identity the build currently qualifies to present as (base classes
+## for each Aspect, plus every hybrid whose Aspects you hold). Powers the identity
+## picker. Sorted simple→complex. Each: { key, title, aspects, tier, is_default }.
+func qualifying_identities(build: CharacterBuild) -> Array:
+	var default_key := _default_identity_key(build)
+	var out: Array = []
+	for key in classes.keys():
+		var req := _aspects_of(key)
+		if not _build_has_all(build, req):
+			continue
+		var tier := _entry_tier(build, req)
+		if tier <= 0:
+			continue
+		out.append({
+			"key": key,
+			"title": classes[key].get("title", key),
+			"aspects": req.size(),
+			"tier": tier,
+			"is_default": key == default_key,
+		})
+	out.sort_custom(func(a, b): return a["aspects"] < b["aspects"] or (a["aspects"] == b["aspects"] and a["title"] < b["title"]))
+	return out
+
+## Clear a chosen identity the build no longer qualifies for (e.g. after respec).
+func prune_identity(build: CharacterBuild) -> void:
+	if build.chosen_identity == "":
+		return
+	if not classes.has(build.chosen_identity) or not _build_has_all(build, _aspects_of(build.chosen_identity)):
+		build.chosen_identity = ""
+
 ## Preview what class you'd become if you invested the next level into `aspect_id`.
-## Powers the "deepen vs mix" level-up screen (DESIGN.md 3.2 / roadmap v0.1).
+## Always previews the EMERGENT default (ignores a locked identity) so the fork
+## always teases the new class the mix could open. (DESIGN.md 3.2 / 3.3.)
 func preview_invest(build: CharacterBuild, aspect_id: String) -> Dictionary:
 	var hypothetical := build.duplicate_build()
+	hypothetical.chosen_identity = ""  # show the discovery, not the locked title
 	hypothetical.invest(aspect_id, 1)
 	var result := resolve(hypothetical)
 	result["is_new_aspect"] = not build.has_aspect(aspect_id)
@@ -101,12 +167,19 @@ func _build_has_all(build: CharacterBuild, required: Array) -> bool:
 			return false
 	return true
 
+## The Aspect ids of a combination key, as a plain Array. (String.split returns
+## a PackedStringArray; we normalize so it slots into Array-typed params.)
+func _aspects_of(key: String) -> Array:
+	if key == "":
+		return []
+	return Array(key.split(","))
+
 ## Every ability the build currently knows, with its source class and tier.
 ## Returns an Array of { name, tier, source_key, source_title }.
 func known_abilities(build: CharacterBuild) -> Array:
 	var out: Array = []
 	for key in classes.keys():
-		var required: Array = (key as String).split(",")
+		var required := _aspects_of(key)
 		if not _build_has_all(build, required):
 			continue
 		var tier := _entry_tier(build, required)

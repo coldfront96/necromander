@@ -1,5 +1,5 @@
 {
-  "_comment": "Data-driven class registry. Key = sorted, comma-joined Aspect set. Adding a class is a data change only. See DESIGN.md section 3.",
+  "_comment": "Data-driven class registry. Key = sorted, comma-joined Aspect set. Adding a class is a data change only. 'affinity' is the flavor passive granted when this class is your chosen identity (DESIGN.md 3.3). See also DESIGN.md section 3.",
   "aspects": {
     "MELEE":  { "display": "Melee",  "blurb": "Martial might, blades & blood.", "starting": true },
     "RANGED": { "display": "Ranged", "blurb": "Precision, bows & traps.",        "starting": true },
@@ -7,23 +7,23 @@
     "DIVINE": { "display": "Divine", "blurb": "Faith, holy & unholy power.",      "starting": false }
   },
   "classes": {
-    "MELEE":  { "title": "Warrior", "tagline": "Steel and discipline.", "abilities": ["Cleave", "Bulwark", "Rend"] },
-    "RANGED": { "title": "Hunter",  "tagline": "One shot, one truth.",  "abilities": ["Aimed Shot", "Snare Trap", "Volley"] },
-    "ARCANE": { "title": "Mage",    "tagline": "The weave bends.",      "abilities": ["Arcane Bolt", "Blink", "Frost Nova"] },
-    "DIVINE": { "title": "Cleric",  "tagline": "By faith, sustained.",  "abilities": ["Smite", "Mend", "Sanctuary"] },
+    "MELEE":  { "title": "Warrior", "tagline": "Steel and discipline.", "abilities": ["Cleave", "Bulwark", "Rend"], "affinity": "Weapon Mastery — your martial abilities hit harder." },
+    "RANGED": { "title": "Hunter",  "tagline": "One shot, one truth.",  "abilities": ["Aimed Shot", "Snare Trap", "Volley"], "affinity": "Keen Eye — your ranged abilities strike truer." },
+    "ARCANE": { "title": "Mage",    "tagline": "The weave bends.",      "abilities": ["Arcane Bolt", "Blink", "Frost Nova"], "affinity": "Arcane Focus — your spells resonate stronger." },
+    "DIVINE": { "title": "Cleric",  "tagline": "By faith, sustained.",  "abilities": ["Smite", "Mend", "Sanctuary"], "affinity": "Devotion — your divine abilities endure longer." },
 
-    "ARCANE,MELEE":   { "title": "War Mage",      "tagline": "Spell and sword as one.",        "abilities": ["Flameblade", "Mana Shield", "Spell Strike"] },
-    "DIVINE,MELEE":   { "title": "Paladin",       "tagline": "A shield made of conviction.",   "abilities": ["Holy Strike", "Lay on Hands", "Consecrate"] },
-    "ARCANE,RANGED":  { "title": "Arcane Archer", "tagline": "Arrows that remember the void.", "abilities": ["Enchanted Shot", "Teleport Quiver", "Seeking Bolt"] },
-    "DIVINE,RANGED":  { "title": "Inquisitor",    "tagline": "Judgment at a distance.",        "abilities": ["Condemn", "Purging Arrow", "Zealous Mark"] },
-    "ARCANE,DIVINE":  { "title": "Necromancer",   "tagline": "Death is a door, not a wall.",   "abilities": ["Raise Dead", "Soul Siphon", "Bone Armor"] },
-    "MELEE,RANGED":   { "title": "Skirmisher",    "tagline": "Close the gap, open the gap.",   "abilities": ["Throwing Blades", "Roll", "Harrying Strike"] },
+    "ARCANE,MELEE":   { "title": "War Mage",      "tagline": "Spell and sword as one.",        "abilities": ["Flameblade", "Mana Shield", "Spell Strike"], "affinity": "Spellblade — steel and spell flow as one." },
+    "DIVINE,MELEE":   { "title": "Paladin",       "tagline": "A shield made of conviction.",   "abilities": ["Holy Strike", "Lay on Hands", "Consecrate"], "affinity": "Oathbound — your holy strikes carry conviction." },
+    "ARCANE,RANGED":  { "title": "Arcane Archer", "tagline": "Arrows that remember the void.", "abilities": ["Enchanted Shot", "Teleport Quiver", "Seeking Bolt"], "affinity": "Ether Fletching — enchanted shots linger." },
+    "DIVINE,RANGED":  { "title": "Inquisitor",    "tagline": "Judgment at a distance.",        "abilities": ["Condemn", "Purging Arrow", "Zealous Mark"], "affinity": "Zeal — judgment lands with force." },
+    "ARCANE,DIVINE":  { "title": "Necromancer",   "tagline": "Death is a door, not a wall.",   "abilities": ["Raise Dead", "Soul Siphon", "Bone Armor"], "affinity": "Grave Bond — death magic feeds your power." },
+    "MELEE,RANGED":   { "title": "Skirmisher",    "tagline": "Close the gap, open the gap.",   "abilities": ["Throwing Blades", "Roll", "Harrying Strike"], "affinity": "Momentum — shifting range empowers you." },
 
-    "ARCANE,DIVINE,MELEE":  { "title": "Death Knight", "tagline": "Power torn from the grave, worn as armor.", "abilities": ["Death Coil", "Unholy Aura", "Soul Reaver"] },
-    "ARCANE,MELEE,RANGED":  { "title": "Spellslinger", "tagline": "Every weapon is a wand.",                  "abilities": ["Gun-Glyph", "Arcane Dash", "Ricochet Hex"] },
-    "DIVINE,MELEE,RANGED":  { "title": "Templar",      "tagline": "A holy order of one.",                     "abilities": ["Crusader's Charge", "Blessed Volley", "Aegis"] },
-    "ARCANE,DIVINE,RANGED": { "title": "Plaguebringer", "tagline": "A quiver of small apocalypses.",          "abilities": ["Withering Shot", "Contagion", "Death Bloom"] },
+    "ARCANE,DIVINE,MELEE":  { "title": "Death Knight", "tagline": "Power torn from the grave, worn as armor.", "abilities": ["Death Coil", "Unholy Aura", "Soul Reaver"], "affinity": "Unliving — siphoned power hardens you." },
+    "ARCANE,MELEE,RANGED":  { "title": "Spellslinger", "tagline": "Every weapon is a wand.",                  "abilities": ["Gun-Glyph", "Arcane Dash", "Ricochet Hex"], "affinity": "Trick Shots — your casts ricochet further." },
+    "DIVINE,MELEE,RANGED":  { "title": "Templar",      "tagline": "A holy order of one.",                     "abilities": ["Crusader's Charge", "Blessed Volley", "Aegis"], "affinity": "Crusade — sustained holy pressure mounts." },
+    "ARCANE,DIVINE,RANGED": { "title": "Plaguebringer", "tagline": "A quiver of small apocalypses.",          "abilities": ["Withering Shot", "Contagion", "Death Bloom"], "affinity": "Contagion — your afflictions spread wider." },
 
-    "ARCANE,DIVINE,MELEE,RANGED": { "title": "Ascendant", "tagline": "Master of the flux, beholden to no single path.", "abilities": ["Aspect Shift", "Unbound", "Convergence"] }
+    "ARCANE,DIVINE,MELEE,RANGED": { "title": "Ascendant", "tagline": "Master of the flux, beholden to no single path.", "abilities": ["Aspect Shift", "Unbound", "Convergence"], "affinity": "Convergence — every aspect amplifies the others." }
   }
 }

@@ -6,6 +6,13 @@ extends Node
 
 const REGISTRY_PATH := "res://data/combinations.json"
 
+## Identity affinity: your chosen identity grants a small bonus to abilities
+## drawn from its Aspects — real, but deliberately non-dominant so identity is a
+## meaningful choice, never the whole game. Scales with your tier in that
+## identity, hard-capped. (DESIGN.md 3.3.) Tunable.
+const AFFINITY_PER_TIER := 2  ## % bonus per identity tier
+const AFFINITY_CAP := 10      ## max % the affinity can ever reach
+
 var aspects: Dictionary = {}   # id -> { display, blurb, starting }
 var classes: Dictionary = {}   # combination_key -> { title, tagline, abilities }
 
@@ -60,7 +67,39 @@ func resolve(build: CharacterBuild) -> Dictionary:
 		"is_known": classes.has(key),
 		"total_level": build.total_level(),
 		"is_default_identity": build.chosen_identity == "" or build.chosen_identity == _default_identity_key(build),
+		"affinity": identity_affinity(build),
 	}
+
+## The bonus granted by the build's current chosen identity. Applies to abilities
+## whose source Aspects are within the identity's Aspect set. Empty for Wanderer.
+func identity_affinity(build: CharacterBuild) -> Dictionary:
+	var key := active_identity_key(build)
+	if key == "":
+		return {}
+	var entry: Dictionary = classes.get(key, {})
+	var req := _aspects_of(key)
+	return {
+		"identity": entry.get("title", key),
+		"bonus_pct": affinity_pct_for_tier(_entry_tier(build, req)),
+		"scope_aspects": req,
+		"passive": entry.get("affinity", "Sharper command of your chosen path."),
+	}
+
+## The affinity % for a given identity tier (shared so the picker can preview it).
+func affinity_pct_for_tier(tier: int) -> int:
+	return min(max(tier, 0) * AFFINITY_PER_TIER, AFFINITY_CAP)
+
+## Does an ability (by its source class key) benefit from the active affinity?
+## True when the ability's source Aspects are all within the identity's Aspects.
+func ability_gets_affinity(build: CharacterBuild, source_key: String) -> bool:
+	var identity := active_identity_key(build)
+	if identity == "":
+		return false
+	var identity_aspects := _aspects_of(identity)
+	for a in _aspects_of(source_key):
+		if not identity_aspects.has(a):
+			return false
+	return true
 
 ## The class key the build presents as: the player's choice if still valid,
 ## else the emergent default.

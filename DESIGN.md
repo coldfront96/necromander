@@ -80,8 +80,10 @@ Two things come out of your Aspect set — and we deliberately handle them
   one** (the most specific class your Aspects form — what a fully-automatic
   system would pick), so casual players never have to think about it, while a
   deep Arcane mage who just wants one Divine utility can stay a "Mage."
-  Later, identity can carry a small affinity bonus, making it a meaningful but
-  never dominant choice.
+  Your chosen identity grants an **affinity bonus** (+2% per identity tier,
+  capped at +10%) to abilities drawn from its Aspects — real enough to reward
+  matching your kit to your identity, never large enough to dominate. Identity is
+  a meaningful choice, not the whole game. (`ClassSystem.identity_affinity`.)
 
 The combination registry is data-driven (`data/combinations.json`); adding a
 class or Aspect is a data change, not code.

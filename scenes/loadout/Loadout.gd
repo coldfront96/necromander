@@ -90,9 +90,14 @@ func _ready() -> void:
 
 func _refresh() -> void:
 	var c := ClassSystem.resolve(build)
-	class_label.text = "%s the %s  ·  Lv %d  ·  Tier %d" % [
-		build.character_name, c["title"], c["total_level"], c["tier"]]
-	slots_label.text = "Active slots:  %d / %d" % [build.loadout.size(), build.max_loadout_slots()]
+	var aff: Dictionary = c.get("affinity", {})
+	var aff_suffix := ""
+	if not aff.is_empty():
+		aff_suffix = "  ·  +%d%% %s affinity" % [aff["bonus_pct"], c["title"]]
+	class_label.text = "%s the %s  ·  Lv %d  ·  Tier %d%s" % [
+		build.character_name, c["title"], c["total_level"], c["tier"], aff_suffix]
+	slots_label.text = "Active slots:  %d / %d   (✦ = boosted by your %s affinity)" % [
+		build.loadout.size(), build.max_loadout_slots(), c["title"]]
 
 	for child in pool_box.get_children():
 		child.queue_free()
@@ -131,7 +136,8 @@ func _refresh() -> void:
 			btn.custom_minimum_size = Vector2(0, 48)
 			btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
 			var mark := "★ " if equipped else "   "
-			btn.text = "%s[T%d] %s" % [mark, a["tier"], ability_name]
+			var boosted := "  ✦" if ClassSystem.ability_gets_affinity(build, a["source_key"]) else ""
+			btn.text = "%s[T%d] %s%s" % [mark, a["tier"], ability_name, boosted]
 			# Grey out unequipped abilities when slots are full.
 			btn.disabled = full and not equipped
 			btn.pressed.connect(func(): _toggle(ability_name))

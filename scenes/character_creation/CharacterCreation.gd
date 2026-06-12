@@ -133,7 +133,7 @@ func _refresh() -> void:
 		tier_label.text = "Hybrid tier: %d   ·   Path: %s" % [
 			c["tier"], " + ".join(_pretty_aspects(c["aspect_set"]))]
 		aspect_lines.text = _aspect_breakdown() + "\n" + _power_line()
-		abilities_label.text = "Abilities: " + (", ".join(c["abilities"]) if not c["abilities"].is_empty() else "—")
+		abilities_label.text = "Abilities: " + (", ".join(c["abilities"]) if not c["abilities"].is_empty() else "—") + "\n" + _affinity_line(c)
 	else:
 		class_label.text = "Wanderer"
 		tagline_label.text = "Choose a starting path below."
@@ -167,7 +167,7 @@ func _rebuild_identity() -> void:
 		btn.custom_minimum_size = Vector2(0, 44)
 		btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		var mark := "● " if is_active else "○ "
-		var tags := ""
+		var tags := "  +%d%% affinity" % ClassSystem.affinity_pct_for_tier(entry["tier"])
 		if entry["aspects"] == 1:
 			tags += "  (base)"
 		if entry["is_default"]:
@@ -230,6 +230,13 @@ func _aspect_breakdown() -> String:
 	for id in build.aspect_set():
 		parts.append("%s %d" % [ClassSystem.aspect_display(id), build.level_in(id)])
 	return "Investments:  " + ("   ".join(parts) if not parts.is_empty() else "—")
+
+func _affinity_line(c: Dictionary) -> String:
+	var a: Dictionary = c.get("affinity", {})
+	if a.is_empty():
+		return ""
+	var scope := " + ".join(_pretty_aspects(a["scope_aspects"]))
+	return "Affinity: +%d%% to %s abilities — %s" % [a["bonus_pct"], scope, a["passive"]]
 
 func _power_line() -> String:
 	var pct := int(round(build.level_power_ratio() * 100.0))

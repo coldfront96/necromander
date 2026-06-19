@@ -4,6 +4,7 @@ extends Control
 
 const CHARACTER_CREATION := "res://scenes/character_creation/CharacterCreation.tscn"
 const LOBBY := "res://scenes/lobby/Lobby.tscn"
+const INVENTORY := "res://scenes/inventory/Inventory.tscn"
 
 func _ready() -> void:
 	var bg := ColorRect.new()
@@ -32,8 +33,19 @@ func _ready() -> void:
 
 	root.add_child(_spacer(30))
 
-	root.add_child(_menu_button("New Character", _on_new_character))
+	# Auto-load an existing save so Continue / Inventory work across launches.
+	if GameState.player_build == null and SaveSystem.has_save():
+		var loaded := SaveSystem.load_build()
+		if loaded != null:
+			GameState.player_build = loaded
+
+	if GameState.has_character():
+		var c := ClassSystem.resolve(GameState.player_build)
+		root.add_child(_menu_button("Continue — %s (Lv %d %s)" % [
+			GameState.player_build.character_name, c["total_level"], c["title"]], _on_continue))
+		root.add_child(_menu_button("Inventory", _on_inventory))
 	root.add_child(_menu_button("Multiplayer Lobby", _on_lobby))
+	root.add_child(_menu_button("New Character", _on_new_character))
 	root.add_child(_menu_button("Quit", _on_quit))
 
 func _menu_button(text: String, cb: Callable) -> Button:
@@ -48,6 +60,12 @@ func _spacer(h: int) -> Control:
 	var c := Control.new()
 	c.custom_minimum_size = Vector2(0, h)
 	return c
+
+func _on_continue() -> void:
+	get_tree().change_scene_to_file(LOBBY)
+
+func _on_inventory() -> void:
+	get_tree().change_scene_to_file(INVENTORY)
 
 func _on_new_character() -> void:
 	get_tree().change_scene_to_file(CHARACTER_CREATION)

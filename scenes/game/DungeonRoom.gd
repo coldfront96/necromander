@@ -27,6 +27,12 @@ const ENEMY_RESPAWN := 4.0
 const PLAYER_BASE_HP := 80.0
 const PLAYER_RESPAWN := 3.0
 
+# --- Loot (v0.4)
+const DROP_CHANCE := 0.7
+const PICKUP_RADIUS := 46.0
+const LOOT_MIN_ILVL := 1
+const LOOT_MAX_ILVL := 6
+
 const PALETTE := [
 	Color(0.61, 0.42, 1.0), Color(0.42, 1.0, 0.81),
 	Color(1.0, 0.55, 0.42), Color(1.0, 0.85, 0.4),
@@ -42,13 +48,18 @@ var player_max: Dictionary = {}    # peer_id -> float
 var player_respawn: Dictionary = {} # peer_id -> float (countdown; >0 = dead)
 var cooldowns: Dictionary = {}     # peer_id -> { ability_name: seconds_left }
 var enemies: Dictionary = {}       # eid -> { pos, hp, max, alive, respawn, atk }
+var ground_loot: Dictionary = {}   # loot_id -> { item, pos }
+var _next_loot_id: int = 0
 
 # --- Client render state (all peers)
 var targets: Dictionary = {}       # peer_id -> Vector2 (position snapshot)
 var c_players: Dictionary = {}     # peer_id -> { hp, max, dead }
 var c_enemies: Dictionary = {}     # eid -> { pos, hp, max }
+var c_loot: Dictionary = {}        # loot_id -> { pos, rarity }
 var avatars: Dictionary = {}       # peer_id -> Token
 var enemy_tokens: Dictionary = {}  # eid -> Token
+var loot_tokens: Dictionary = {}   # loot_id -> Token
+var loot_log: Label
 
 var _last_sent_input := Vector2.ZERO
 var _broadcast_accum := 0.0
@@ -111,6 +122,10 @@ func _build_ui(view: Vector2) -> void:
 	status_label.position = Vector2(20, 38)
 	status_label.add_theme_color_override("font_color", Color(0.42, 1.0, 0.81))
 	ui.add_child(status_label)
+
+	loot_log = Label.new()
+	loot_log.position = Vector2(20, 62)
+	ui.add_child(loot_log)
 
 	joystick = preload("res://scenes/game/VirtualJoystick.gd").new()
 	joystick.position = Vector2(40, view.y - 40 - 180)
@@ -187,7 +202,7 @@ func _build_for(peer_id: int) -> CharacterBuild:
 	return CharacterBuild.from_dict(info.get("build", {}))
 
 func _max_hp(build: CharacterBuild) -> float:
-	return PLAYER_BASE_HP + build.level_power()
+	return PLAYER_BASE_HP + build.level_power() + float(build.equipped_stats().get("max_hp", 0.0))
 
 # ================================================================ main loop
 func _physics_process(delta: float) -> void:
@@ -204,7 +219,7 @@ func _physics_process(delta: float) -> void:
 		_combat_accum += delta
 		if _combat_accum >= 1.0 / COMBAT_HZ:
 			_combat_accum = 0.0
-			_sync_combat.rpc(_pack_players(), _pack_enemies())
+			_sync_combat.rpc(_pack_players(), _pack_enemies(), _pack_loot())
 	_render(delta)
 	_update_status()
 
@@ -261,6 +276,33 @@ func _server_step(delta: float) -> void:
 		if e["atk"] <= 0.0:
 			e["atk"] = ENEMY_ATTACK_INTERVAL
 			_enemy_attack(e["pos"])
+	# Auto-pickup: hand each ground item to the nearest living player in range.
+	for lid in ground_loot.keys():
+		var loot: Dictionary = ground_loot[lid]
+		var who := _nearest_player(loot["pos"], PICKUP_RADIUS)
+		if who != -1:
+			ground_loot.erase(lid)
+			_award_loot(who, loot["item"])
+
+func _nearest_player(from: Vector2, rng: float) -> int:
+	var best := -1
+	var best_d := rng
+	for id in positions.keys():
+		if _is_dead(id):
+			continue
+		var d: float = from.distance_to(positions[id])
+		if d <= best_d:
+			best_d = d
+			best = id
+	return best
+
+func _award_loot(peer_id: int, item: Dictionary) -> void:
+	# Server is the sole loot authority; deliver to the owning client (or apply
+	# locally when the host wins it) so they bag + persist it.
+	if peer_id == 1:
+		_apply_grant(item)
+	else:
+		_grant_loot.rpc_id(peer_id, item)
 
 func _enemy_attack(from: Vector2) -> void:
 	for id in positions.keys():
@@ -309,37 +351,43 @@ func _resolve_cast(peer_id: int, ability_name: String) -> void:
 
 	var origin: Vector2 = positions[peer_id]
 	var kind: String = def.get("kind", "projectile")
-	var power := _with_affinity(build, ability_name, float(def.get("power", 8.0)))
+	var base := float(def.get("power", 8.0))
+	var dmg := _amp(build, ability_name, base, false)   # affinity + gear damage
+	var heal := _amp(build, ability_name, base, true)    # affinity + gear healing
 	var rng := float(def.get("range", 300.0))
 
 	match kind:
 		"heal":
-			_heal_player(peer_id, power)
-			_fx_number.rpc(origin, power, true)
+			_heal_player(peer_id, heal)
+			_fx_number.rpc(origin, heal, true)
 		"nova":
 			var radius := float(def.get("radius", 140.0))
 			for eid in enemies.keys():
 				var e: Dictionary = enemies[eid]
 				if e["alive"] and origin.distance_to(e["pos"]) <= radius:
-					_damage_enemy(eid, power)
+					_damage_enemy(eid, dmg)
 		"drain":
 			var t := _nearest_enemy(origin, rng)
 			if t != -1:
-				_damage_enemy(t, power)
-				_heal_player(peer_id, power * 0.5)
+				_damage_enemy(t, dmg)
+				_heal_player(peer_id, dmg * 0.5)
 				_fx_line.rpc(origin, enemies[t]["pos"], false)
 		_:  # projectile / melee
 			var target := _nearest_enemy(origin, rng)
 			if target != -1:
-				_damage_enemy(target, power)
+				_damage_enemy(target, dmg)
 				_fx_line.rpc(origin, enemies[target]["pos"], true)
 
-func _with_affinity(build: CharacterBuild, ability_name: String, amount: float) -> float:
+## Amplify a base amount by identity affinity (DESIGN.md 3.3) and equipped gear
+## (the lateral power axis, DESIGN.md 3.7). is_heal picks heal_pct vs damage_pct.
+func _amp(build: CharacterBuild, ability_name: String, amount: float, is_heal: bool) -> float:
 	var src := ClassSystem.ability_source_key(ability_name)
 	if src != "" and ClassSystem.ability_gets_affinity(build, src):
 		var pct := float(ClassSystem.identity_affinity(build).get("bonus_pct", 0))
-		return amount * (1.0 + pct / 100.0)
-	return amount
+		amount *= 1.0 + pct / 100.0
+	var gear := build.equipped_stats()
+	var stat := "heal_pct" if is_heal else "damage_pct"
+	return amount * (1.0 + float(gear.get(stat, 0.0)) / 100.0)
 
 func _nearest_enemy(from: Vector2, rng: float) -> int:
 	var best := -1
@@ -362,6 +410,14 @@ func _damage_enemy(eid: int, dmg: float) -> void:
 		e["hp"] = 0.0
 		e["alive"] = false
 		e["respawn"] = ENEMY_RESPAWN
+		_maybe_drop(e["pos"])
+
+func _maybe_drop(pos: Vector2) -> void:
+	if randf() > DROP_CHANCE:
+		return
+	var item := LootSystem.roll_drop(randi_range(LOOT_MIN_ILVL, LOOT_MAX_ILVL))
+	ground_loot[_next_loot_id] = {"item": item, "pos": pos}
+	_next_loot_id += 1
 
 func _damage_player(peer_id: int, dmg: float) -> void:
 	if not player_hp.has(peer_id):
@@ -397,9 +453,22 @@ func _sync_positions(snapshot: Dictionary) -> void:
 	targets = snapshot.duplicate(true)
 
 @rpc("authority", "call_local", "unreliable_ordered")
-func _sync_combat(players: Dictionary, mobs: Dictionary) -> void:
+func _sync_combat(players: Dictionary, mobs: Dictionary, loot: Dictionary) -> void:
 	c_players = players
 	c_enemies = mobs
+	c_loot = loot
+
+## Server -> owning client: "you picked this up." Bag it and persist.
+@rpc("authority", "call_remote", "reliable")
+func _grant_loot(item: Dictionary) -> void:
+	_apply_grant(item)
+
+func _apply_grant(item: Dictionary) -> void:
+	GameState.receive_loot(item)
+	if loot_log:
+		var col := LootSystem.rarity_color(item.get("rarity", "common"))
+		loot_log.add_theme_color_override("font_color", col)
+		loot_log.text = "Looted: %s" % item.get("name", "item")
 
 func _pack_players() -> Dictionary:
 	var out := {}
@@ -412,6 +481,12 @@ func _pack_enemies() -> Dictionary:
 	for eid in enemies.keys():
 		if enemies[eid]["alive"]:
 			out[eid] = {"pos": enemies[eid]["pos"], "hp": enemies[eid]["hp"], "max": enemies[eid]["max"]}
+	return out
+
+func _pack_loot() -> Dictionary:
+	var out := {}
+	for lid in ground_loot.keys():
+		out[lid] = {"pos": ground_loot[lid]["pos"], "rarity": ground_loot[lid]["item"].get("rarity", "common")}
 	return out
 
 # ================================================================ rendering
@@ -446,6 +521,21 @@ func _render(delta: float) -> void:
 		if not c_enemies.has(eid):
 			enemy_tokens[eid].queue_free()
 			enemy_tokens.erase(eid)
+	# Ground loot (small rarity-colored diamonds)
+	for lid in c_loot.keys():
+		var lt: Token = loot_tokens.get(lid)
+		if lt == null:
+			lt = Token.new()
+			lt.radius = 9.0
+			lt.is_square = true
+			lt.color = LootSystem.rarity_color(c_loot[lid].get("rarity", "common"))
+			loot_tokens[lid] = lt
+			world.add_child(lt)
+		lt.position = c_loot[lid]["pos"]
+	for lid in loot_tokens.keys():
+		if not c_loot.has(lid):
+			loot_tokens[lid].queue_free()
+			loot_tokens.erase(lid)
 
 func _make_player_token(peer_id: int) -> Token:
 	var info: Dictionary = NetworkManager.players.get(peer_id, {})

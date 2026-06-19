@@ -76,6 +76,17 @@ func join_game(address: String, port: int = DEFAULT_PORT) -> bool:
 	multiplayer.multiplayer_peer = peer
 	return true
 
+## Re-send our character info (e.g. after equipping gear) so the authoritative
+## server's combat math reflects the change.
+func push_local_update() -> void:
+	if not is_active():
+		return
+	if is_server():
+		players[1] = _local_info()
+		_sync_roster.rpc(players)
+	else:
+		_register_player.rpc_id(1, local_id(), _local_info())
+
 func leave() -> void:
 	if is_active():
 		multiplayer.multiplayer_peer.close()

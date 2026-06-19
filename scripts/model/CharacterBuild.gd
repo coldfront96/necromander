@@ -25,6 +25,39 @@ extends Resource
 ## slots (capped) and cosmetics — never raw power. See DESIGN.md 3.7.
 @export var ascension_rank: int = 0
 
+## Gear — the lateral power axis (DESIGN.md 3.7 / v0.4). Items are plain dicts so
+## they serialize for save files and RPCs.
+@export var inventory: Array = []            ## item dicts not currently equipped
+@export var equipment: Dictionary = {}       ## slot -> item dict
+@export var gold: int = 0                     ## currency (respec tokens, shop)
+
+const GEAR_SLOTS := ["weapon", "armor", "trinket"]
+
+## Equip an item from inventory; any item already in that slot returns to the bag.
+func equip_item(item: Dictionary) -> void:
+	var slot: String = item.get("slot", "")
+	if slot == "":
+		return
+	inventory.erase(item)
+	if equipment.has(slot) and not (equipment[slot] as Dictionary).is_empty():
+		inventory.append(equipment[slot])
+	equipment[slot] = item
+
+func unequip(slot: String) -> void:
+	if equipment.has(slot) and not (equipment[slot] as Dictionary).is_empty():
+		inventory.append(equipment[slot])
+		equipment.erase(slot)
+
+## Summed stats across all equipped items (e.g. {"damage_pct": 14, "max_hp": 30}).
+func equipped_stats() -> Dictionary:
+	var totals := {}
+	for slot in equipment.keys():
+		var item: Dictionary = equipment[slot]
+		for k in (item.get("stats", {}) as Dictionary).keys():
+			totals[k] = float(totals.get(k, 0.0)) + float(item["stats"][k])
+	return totals
+
+
 # --- Soft-cap power model (DESIGN.md 3.7) -------------------------------------
 # Leveling is UNCAPPED. But the raw stat power a level contributes follows a
 # diminishing curve: big gains early, asymptotically flattening toward a ceiling.
@@ -123,6 +156,9 @@ func duplicate_build() -> CharacterBuild:
 	copy.loadout = loadout.duplicate()
 	copy.ascension_rank = ascension_rank
 	copy.chosen_identity = chosen_identity
+	copy.inventory = inventory.duplicate(true)
+	copy.equipment = equipment.duplicate(true)
+	copy.gold = gold
 	return copy
 
 func to_dict() -> Dictionary:
@@ -133,6 +169,9 @@ func to_dict() -> Dictionary:
 		"loadout": loadout.duplicate(),
 		"ascension_rank": ascension_rank,
 		"chosen_identity": chosen_identity,
+		"inventory": inventory.duplicate(true),
+		"equipment": equipment.duplicate(true),
+		"gold": gold,
 	}
 
 static func from_dict(d: Dictionary) -> CharacterBuild:
@@ -143,4 +182,7 @@ static func from_dict(d: Dictionary) -> CharacterBuild:
 	b.loadout = (d.get("loadout", []) as Array).duplicate()
 	b.ascension_rank = int(d.get("ascension_rank", 0))
 	b.chosen_identity = d.get("chosen_identity", "")
+	b.inventory = (d.get("inventory", []) as Array).duplicate(true)
+	b.equipment = (d.get("equipment", {}) as Dictionary).duplicate(true)
+	b.gold = int(d.get("gold", 0))
 	return b

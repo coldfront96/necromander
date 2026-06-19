@@ -49,6 +49,10 @@ scenes/
   **target dummies** — the server resolves damage/healing, applies your identity
   affinity bonus, and broadcasts HP to everyone. Dummies hit back, so healing
   abilities matter; downed players respawn.
+- Dummies **drop loot** (rarity-colored diamonds) — walk over a drop to pick it
+  up. Open **Inventory** from the main menu to equip gear; its stats scale your
+  damage/healing/HP server-side. Your character (build, gear, gold) **saves
+  automatically** — use **Continue** on the title screen next launch.
 
 ## Status
 

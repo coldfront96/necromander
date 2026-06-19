@@ -14,8 +14,10 @@ config/icon="res://icon.svg"
 
 [autoload]
 
-GameState="*res://scripts/autoload/GameState.gd"
 ClassSystem="*res://scripts/autoload/ClassSystem.gd"
+LootSystem="*res://scripts/autoload/LootSystem.gd"
+SaveSystem="*res://scripts/autoload/SaveSystem.gd"
+GameState="*res://scripts/autoload/GameState.gd"
 NetworkManager="*res://scripts/autoload/NetworkManager.gd"
 
 [display]

@@ -1,0 +1,24 @@
+{
+  "_comment": "Loot tables. LootSystem rolls a base + rarity + affixes into an item instance. Stats are read by combat (damage_pct, heal_pct) and by max-HP (max_hp). Data-driven — add bases/affixes/rarities here, no code change.",
+  "bases": {
+    "Sword":  { "slot": "weapon",  "stat": "damage_pct", "base": 6 },
+    "Bow":    { "slot": "weapon",  "stat": "damage_pct", "base": 6 },
+    "Staff":  { "slot": "weapon",  "stat": "damage_pct", "base": 6 },
+    "Robe":   { "slot": "armor",   "stat": "max_hp",     "base": 18 },
+    "Plate":  { "slot": "armor",   "stat": "max_hp",     "base": 24 },
+    "Ring":   { "slot": "trinket", "stat": "heal_pct",   "base": 5 },
+    "Amulet": { "slot": "trinket", "stat": "heal_pct",   "base": 5 }
+  },
+  "rarities": {
+    "common":    { "mult": 1.0, "affixes": 0, "color": "b8b8b8", "weight": 60 },
+    "uncommon":  { "mult": 1.3, "affixes": 1, "color": "5ad06a", "weight": 25 },
+    "rare":      { "mult": 1.7, "affixes": 2, "color": "5a9bd0", "weight": 10 },
+    "epic":      { "mult": 2.3, "affixes": 3, "color": "a96cff", "weight": 4 },
+    "legendary": { "mult": 3.2, "affixes": 4, "color": "ff9d3b", "weight": 1 }
+  },
+  "affixes": {
+    "damage_pct": { "min": 2, "max": 8,  "label": "% Damage" },
+    "heal_pct":   { "min": 2, "max": 7,  "label": "% Healing" },
+    "max_hp":     { "min": 8, "max": 30, "label": "Max HP" }
+  }
+}

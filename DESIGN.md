@@ -215,7 +215,8 @@ See `scripts/autoload/NetworkManager.gd`.
   server-authoritative movement, touch joystick, host-started runs. ✅
 - **v0.3:** Combat prototype — server-authoritative casting, HP, target dummies,
   data-driven abilities, touch hotbar, affinity applied to damage/heal. ✅
-- **v0.4:** Loot + persistence (local save, then server-side).
+- **v0.4:** Loot + persistence — data-driven drops, gear that scales combat
+  (the lateral power axis), inventory/equipment screen, local save/load. ✅
 - **v0.5:** Procedural dungeon generation.
 
 ## 7. Resolved Decisions

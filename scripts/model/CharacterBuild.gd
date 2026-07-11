@@ -31,6 +31,11 @@ extends Resource
 @export var equipment: Dictionary = {}       ## slot -> item dict
 @export var gold: int = 0                     ## currency (respec tokens, shop)
 
+## Banked experience toward the next level (v0.6). XP is granted by the
+## authoritative server during runs; *spending* it — the deepen-vs-mix fork —
+## is always the player's choice (level_up below).
+@export var xp: int = 0
+
 const GEAR_SLOTS := ["weapon", "armor", "trinket"]
 
 ## Equip an item from inventory; any item already in that slot returns to the bag.
@@ -132,6 +137,32 @@ func combination_key() -> String:
 func invest(aspect_id: String, amount: int = 1) -> void:
 	aspect_levels[aspect_id] = int(aspect_levels.get(aspect_id, 0)) + amount
 
+# --- XP (v0.6) ----------------------------------------------------------------
+# The cost curve grows with total level, so early levels come fast (the on-ramp)
+# and later ones slow down — which pairs with level_power() flattening: past the
+# soft cap you still *can* level, it just takes longer and grants mostly breadth.
+const XP_BASE := 50
+const XP_PER_LEVEL := 25
+
+## XP needed to bank the next level at the current total level.
+func xp_to_next() -> int:
+	return XP_BASE + XP_PER_LEVEL * total_level()
+
+func can_level_up() -> bool:
+	return xp >= xp_to_next()
+
+## Spend banked XP to invest one level — the signature deepen-vs-mix fork
+## (DESIGN.md 3.2), now paid for with XP earned in runs. Returns false if the
+## bank can't cover the cost. Cost is locked in before the invest, since
+## investing raises total_level (and with it the *next* level's price).
+func level_up(aspect_id: String) -> bool:
+	var cost := xp_to_next()
+	if xp < cost:
+		return false
+	xp -= cost
+	invest(aspect_id, 1)
+	return true
+
 func level_in(aspect_id: String) -> int:
 	return int(aspect_levels.get(aspect_id, 0))
 
@@ -159,6 +190,7 @@ func duplicate_build() -> CharacterBuild:
 	copy.inventory = inventory.duplicate(true)
 	copy.equipment = equipment.duplicate(true)
 	copy.gold = gold
+	copy.xp = xp
 	return copy
 
 func to_dict() -> Dictionary:
@@ -172,6 +204,7 @@ func to_dict() -> Dictionary:
 		"inventory": inventory.duplicate(true),
 		"equipment": equipment.duplicate(true),
 		"gold": gold,
+		"xp": xp,
 	}
 
 static func from_dict(d: Dictionary) -> CharacterBuild:
@@ -185,4 +218,5 @@ static func from_dict(d: Dictionary) -> CharacterBuild:
 	b.inventory = (d.get("inventory", []) as Array).duplicate(true)
 	b.equipment = (d.get("equipment", {}) as Dictionary).duplicate(true)
 	b.gold = int(d.get("gold", 0))
+	b.xp = int(d.get("xp", 0))
 	return b

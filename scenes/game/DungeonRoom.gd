@@ -48,6 +48,15 @@ const LOOT_MAX_ILVL := 12
 const PORTAL_RADIUS := 42.0
 const EXTRACT_DELAY := 3.5
 
+# --- XP (v0.6) — party-shared: every member earns full XP on any kill, so
+# co-op never devolves into kill-stealing. Depth is the multiplier, extraction
+# pays a completion bonus. Spending XP (deepen vs mix) happens in-run too.
+const XP_PER_KILL := 14.0
+const XP_DEPTH_BONUS := 0.5        # +50% per depth beyond the first room
+const XP_BOSS_MULT := 4.0
+const XP_EXTRACT_BASE := 40
+const XP_EXTRACT_PER_DEPTH := 30
+
 const PALETTE := [
 	Color(0.61, 0.42, 1.0), Color(0.42, 1.0, 0.81),
 	Color(1.0, 0.55, 0.42), Color(1.0, 0.85, 0.4),
@@ -99,6 +108,11 @@ var portal_token: Token
 var hotbar: HBoxContainer
 var status_label: Label
 var banner_label: Label
+var xp_label: Label
+var levelup_button: Button
+var levelup_panel: Control
+var levelup_options: VBoxContainer
+var levelup_header: Label
 
 func _ready() -> void:
 	if not NetworkManager.is_active():
@@ -120,6 +134,9 @@ func _ready() -> void:
 		_spawn_enemies()
 		NetworkManager.player_joined.connect(_on_player_joined)
 		NetworkManager.player_left.connect(_on_player_left)
+		# Builds can change mid-run now (in-run level-ups, v0.6) — refresh the
+		# server's derived stats whenever the roster re-syncs.
+		NetworkManager.lobby_updated.connect(_on_roster_updated)
 
 # ================================================================ build
 func _build_world() -> void:
@@ -181,8 +198,13 @@ func _build_ui(view: Vector2) -> void:
 	status_label.add_theme_color_override("font_color", Color(0.42, 1.0, 0.81))
 	ui.add_child(status_label)
 
+	xp_label = Label.new()
+	xp_label.position = Vector2(20, 62)
+	xp_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
+	ui.add_child(xp_label)
+
 	loot_log = Label.new()
-	loot_log.position = Vector2(20, 62)
+	loot_log.position = Vector2(20, 86)
 	ui.add_child(loot_log)
 
 	# Big center announcement (used when the run completes).
@@ -211,6 +233,20 @@ func _build_ui(view: Vector2) -> void:
 	for ability_name in _local_hotbar_abilities():
 		hotbar.add_child(_make_ability_button(ability_name))
 
+	# The signature moment, surfaced mid-run (v0.6): lights up when banked XP
+	# covers the next level; opens the deepen-vs-mix fork. The dungeon does NOT
+	# pause — choosing under pressure is part of the flavor.
+	levelup_button = Button.new()
+	levelup_button.text = "▲ LEVEL UP!"
+	levelup_button.visible = false
+	levelup_button.position = Vector2(view.x - 170, view.y - 140)
+	levelup_button.custom_minimum_size = Vector2(150, 52)
+	levelup_button.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
+	levelup_button.pressed.connect(_open_levelup)
+	ui.add_child(levelup_button)
+
+	_build_levelup_panel(ui, view)
+
 	var leave := Button.new()
 	leave.text = "Leave"
 	leave.position = Vector2(view.x - 130, 24)
@@ -237,6 +273,114 @@ func _make_ability_button(ability_name: String) -> Button:
 	b.custom_minimum_size = Vector2(96, 48)
 	b.pressed.connect(func(): _try_cast(ability_name))
 	return b
+
+# ================================================================ level-up (v0.6)
+## The deepen-vs-mix fork, in-run. Same engine as character creation
+## (ClassSystem.preview_invest); here it spends XP banked from kills.
+func _build_levelup_panel(ui: CanvasLayer, view: Vector2) -> void:
+	levelup_panel = Control.new()
+	levelup_panel.visible = false
+	levelup_panel.size = view
+	ui.add_child(levelup_panel)
+
+	var dim := ColorRect.new()
+	dim.color = Color(0.0, 0.0, 0.0, 0.72)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	levelup_panel.add_child(dim)
+
+	var panel := PanelContainer.new()
+	panel.position = Vector2(view.x * 0.5 - 310, view.y * 0.16)
+	panel.custom_minimum_size = Vector2(620, 0)
+	levelup_panel.add_child(panel)
+
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 10)
+	panel.add_child(col)
+
+	var title := Label.new()
+	title.text = "LEVEL UP — invest your point"
+	title.add_theme_font_size_override("font_size", 26)
+	title.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
+	col.add_child(title)
+
+	levelup_header = Label.new()
+	levelup_header.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	levelup_header.add_theme_color_override("font_color", Color(0.7, 0.7, 0.8))
+	col.add_child(levelup_header)
+
+	levelup_options = VBoxContainer.new()
+	levelup_options.add_theme_constant_override("separation", 8)
+	col.add_child(levelup_options)
+
+	var later := Button.new()
+	later.text = "Later (keep fighting)"
+	later.custom_minimum_size = Vector2(0, 48)
+	later.pressed.connect(func(): levelup_panel.visible = false)
+	col.add_child(later)
+
+func _open_levelup() -> void:
+	var build: CharacterBuild = GameState.player_build
+	if build == null or not build.can_level_up():
+		return
+	var c := ClassSystem.resolve(build)
+	levelup_header.text = "%s the %s (Lv %d)   ·   XP banked: %d (next level costs %d)\nThe dungeon does not wait — choose your road." % [
+		build.character_name, c.get("title", "Wanderer"), build.total_level(),
+		build.xp, build.xp_to_next()]
+	for child in levelup_options.get_children():
+		child.queue_free()
+	for id in ClassSystem.all_aspect_ids():
+		var preview := ClassSystem.preview_invest(build, id)
+		var verb := "Mix in" if preview.get("is_new_aspect", true) else "Deepen"
+		var btn := Button.new()
+		btn.custom_minimum_size = Vector2(0, 52)
+		btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		btn.text = "%s %s  →  %s" % [verb, ClassSystem.aspect_display(id), preview["title"]]
+		if not preview.get("is_known", false):
+			btn.text += "  (uncharted)"
+		btn.pressed.connect(func(): _choose_level_up(id))
+		levelup_options.add_child(btn)
+	levelup_panel.visible = true
+
+func _choose_level_up(aspect_id: String) -> void:
+	var build: CharacterBuild = GameState.player_build
+	if build == null or not build.level_up(aspect_id):
+		levelup_panel.visible = false
+		return
+	GameState.save()
+	# Tell the authoritative server: its combat math (and our max HP) must
+	# reflect the new build immediately — same path gear changes use.
+	NetworkManager.push_local_update()
+	_refresh_hotbar()
+	_fx_levelup()
+	# More banked levels? Re-open with fresh previews; otherwise close.
+	if build.can_level_up():
+		_open_levelup()
+	else:
+		levelup_panel.visible = false
+
+## Known pool may have grown (a mix can unlock a whole new tree). The equipped
+## loadout is untouched, but the fallback hotbar can widen.
+func _refresh_hotbar() -> void:
+	for child in hotbar.get_children():
+		child.queue_free()
+	for ability_name in _local_hotbar_abilities():
+		hotbar.add_child(_make_ability_button(ability_name))
+
+## Local celebratory flash on our own avatar (cosmetic only).
+func _fx_levelup() -> void:
+	var me: Token = avatars.get(NetworkManager.local_id())
+	if me == null:
+		return
+	var l := Label.new()
+	l.text = "LEVEL UP"
+	l.add_theme_font_size_override("font_size", 22)
+	l.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
+	l.position = me.position + Vector2(-46, -AVATAR_RADIUS - 58)
+	world.add_child(l)
+	var tw := create_tween()
+	tw.tween_property(l, "position", l.position + Vector2(0, -50), 0.9)
+	tw.parallel().tween_property(l, "modulate:a", 0.0, 0.9)
+	tw.tween_callback(l.queue_free)
 
 # ================================================================ spawning (server)
 func _spawn_room_center() -> Vector2:
@@ -281,6 +425,22 @@ func _on_player_joined(peer_id: int, _info: Dictionary) -> void:
 func _on_player_left(peer_id: int) -> void:
 	for d in [positions, inputs, player_hp, player_max, player_respawn, cooldowns]:
 		d.erase(peer_id)
+
+## A peer's build changed mid-run (level-up or gear). Recompute max HP; when it
+## grew, grant the difference as an immediate heal — leveling should feel good.
+func _on_roster_updated(_players: Dictionary) -> void:
+	if not NetworkManager.is_server():
+		return
+	for id in player_max.keys():
+		var new_max := _max_hp(_build_for(id))
+		var diff: float = new_max - player_max[id]
+		if diff == 0.0:
+			continue
+		player_max[id] = new_max
+		if diff > 0.0 and not _is_dead(id):
+			player_hp[id] = min(new_max, player_hp[id] + diff)
+		else:
+			player_hp[id] = min(player_hp[id], new_max)
 
 func _build_for(peer_id: int) -> CharacterBuild:
 	var info: Dictionary = NetworkManager.players.get(peer_id, {})
@@ -512,8 +672,27 @@ func _damage_enemy(eid: int, dmg: float) -> void:
 	if e["hp"] <= 0.0:
 		e["hp"] = 0.0
 		e["alive"] = false
+		_award_xp_party(_kill_xp(e["depth"], e["boss"]))
 		_maybe_drop(e["pos"], e["depth"], e["boss"])
 		_check_portal(e["room"])
+
+## XP for a kill, scaled by room depth; bosses pay a fat premium.
+func _kill_xp(depth: int, boss: bool) -> int:
+	var amount := XP_PER_KILL * (1.0 + XP_DEPTH_BONUS * float(depth - 1))
+	if boss:
+		amount *= XP_BOSS_MULT
+	return int(round(amount))
+
+## Party-shared XP (server): every member banks the full amount — co-op should
+## never devolve into kill-stealing. Delivery mirrors the loot-grant path.
+func _award_xp_party(amount: int) -> void:
+	if amount <= 0:
+		return
+	for id in NetworkManager.players.keys():
+		if id == 1:
+			_apply_xp(amount)
+		else:
+			_grant_xp.rpc_id(id, amount)
 
 ## The portal opens the moment the exit room is cleared.
 func _check_portal(room_idx: int) -> void:
@@ -535,12 +714,13 @@ func _maybe_drop(pos: Vector2, depth: int, boss: bool) -> void:
 	ground_loot[_next_loot_id] = {"item": item, "pos": pos}
 	_next_loot_id += 1
 
-## Extraction (server): bonus reward for every party member, then send
-## everyone back to the lobby together.
+## Extraction (server): bonus reward + completion XP for every party member,
+## then send everyone back to the lobby together.
 func _finish_run() -> void:
 	if _run_over:
 		return
 	var exit_depth: int = layout["rooms"][layout["exit"]]["depth"]
+	_award_xp_party(XP_EXTRACT_BASE + XP_EXTRACT_PER_DEPTH * exit_depth)
 	for id in NetworkManager.players.keys():
 		var bonus := LootSystem.roll_drop(clampi(2 + exit_depth * 2, 1, LOOT_MAX_ILVL))
 		_award_loot(id, bonus)
@@ -591,6 +771,14 @@ func _sync_combat(players: Dictionary, mobs: Dictionary, loot: Dictionary, porta
 func _grant_loot(item: Dictionary) -> void:
 	_apply_grant(item)
 
+## Server -> owning client: "you earned this XP." Bank it and persist (v0.6).
+@rpc("authority", "call_remote", "reliable")
+func _grant_xp(amount: int) -> void:
+	_apply_xp(amount)
+
+func _apply_xp(amount: int) -> void:
+	GameState.receive_xp(amount)
+
 func _apply_grant(item: Dictionary) -> void:
 	GameState.receive_loot(item)
 	if loot_log:
@@ -603,6 +791,7 @@ func _apply_grant(item: Dictionary) -> void:
 @rpc("authority", "call_local", "reliable")
 func _complete_run() -> void:
 	_run_over = true
+	levelup_panel.visible = false
 	banner_label.text = "DUNGEON CLEARED!\nExtracting…"
 	# Capture the tree, not self: if this peer bails to the menu during the
 	# delay, the node is freed but the timer still fires safely — and
@@ -730,6 +919,14 @@ func _update_status() -> void:
 			hp_txt += "  (down — respawning)"
 	var hunt := "   PORTAL OPEN!" if c_portal else "   Husks left: %d" % c_enemies.size()
 	status_label.text = "%s%s%s" % [role, hp_txt, hunt]
+	# XP readout + the fork prompt (v0.6) — read straight off the local build,
+	# which is the one true owner of banked XP.
+	var build: CharacterBuild = GameState.player_build
+	if build != null:
+		xp_label.text = "Lv %d   ·   XP %d / %d" % [build.total_level(), build.xp, build.xp_to_next()]
+		levelup_button.visible = build.can_level_up() and not _run_over
+	else:
+		levelup_button.visible = false
 
 # ---- floating numbers / projectile lines (cosmetic, all peers)
 @rpc("authority", "call_local", "unreliable")

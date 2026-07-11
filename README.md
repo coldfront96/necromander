@@ -58,14 +58,19 @@ scenes/
 - Husks **drop loot** (rarity-colored diamonds) that rolls **higher item levels
   in deeper rooms** — walk over a drop to pick it up. Open **Inventory** from
   the main menu to equip gear; its stats scale your damage/healing/HP
-  server-side. Your character (build, gear, gold) **saves automatically** —
+  server-side. Your character (build, gear, gold, XP) **saves automatically** —
   use **Continue** on the title screen next launch.
+- Kills also grant **party-shared XP** (deeper rooms pay more). When your bank
+  covers the next level, a **▲ LEVEL UP!** button lights up — tap it to face
+  the signature fork *mid-run*: **deepen** an Aspect or **mix** in a new one,
+  with a live preview of the class you'd become. The dungeon doesn't pause, so
+  choose fast. Your new abilities and HP apply immediately.
 - Clear the deepest room (a **boss** guards it) to open the **exit portal** —
   step in and the whole party extracts back to the lobby with a bonus reward,
   ready to roll the next dungeon.
 
 ## Status
 
-v0.5 — procedural dungeons are in; see the roadmap in
-[DESIGN.md](DESIGN.md#6-roadmap). Next up (v0.6): XP from kills and the in-run
-"deepen vs mix" level-up fork.
+v0.6 — XP and the in-run "deepen vs mix" level-up fork are live; see the
+roadmap in [DESIGN.md](DESIGN.md#6-roadmap). Next up (v0.7): a town/hub scene
+and shop (gold, Respec Tokens) — the first full pass of the target game loop.

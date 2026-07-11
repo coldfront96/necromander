@@ -98,7 +98,7 @@ func _ready() -> void:
 	col.add_child(_divider())
 
 	# --- The fork in the road
-	var prompt := _label("Invest your next level:")
+	var prompt := _label("Choose your starting path:")
 	prompt.add_theme_font_size_override("font_size", 20)
 	col.add_child(prompt)
 
@@ -181,35 +181,27 @@ func _choose_identity(key: String, is_default: bool) -> void:
 	build.chosen_identity = "" if is_default else key
 	_refresh()
 
-## Show every fork: at creation only the 3 starting Aspects; after that, every
-## Aspect (deepen existing or mix new), each previewing the resulting class.
+## Creation grants exactly ONE investment — the starting Aspect. Every level
+## after that is earned as XP in dungeon runs (v0.6), where the same
+## deepen-vs-mix fork reappears at each level-up. (The old unlimited free
+## sandbox would have broken the XP economy: a fresh character could out-level
+## a veteran for free.)
 func _rebuild_options(has_started: bool) -> void:
 	for child in options_box.get_children():
 		child.queue_free()
 
-	# No hard cap — leveling continues forever (DESIGN.md 3.7). Past the soft cap
-	# we just note that raw level power has mostly flattened.
-	if build.past_soft_cap():
-		var note := _label("Past soft cap (%d): each level now adds little raw power — lean on gear, build synergy & Ascension." % CharacterBuild.LEVEL_SOFT_CAP)
+	if has_started:
+		var note := _label("Your road begins with a single step. Further levels are earned in dungeon runs — the deepen-vs-mix fork returns with every level-up.")
 		note.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
 		options_box.add_child(note)
+		return
 
-	var candidate_ids: Array
-	if not has_started:
-		candidate_ids = ClassSystem.starting_aspects()
-	else:
-		candidate_ids = ClassSystem.all_aspect_ids()
-
-	for id in candidate_ids:
+	for id in ClassSystem.starting_aspects():
 		var preview := ClassSystem.preview_invest(build, id)
-		var verb := "Mix in" if preview.get("is_new_aspect", true) else "Deepen"
 		var btn := Button.new()
 		btn.custom_minimum_size = Vector2(0, 56)
 		btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		var becomes: String = preview["title"]
-		btn.text = "%s %s  →  %s" % [verb, ClassSystem.aspect_display(id), becomes]
-		if not preview.get("is_known", false):
-			btn.text += "  (uncharted)"
+		btn.text = "Begin as %s  →  %s" % [ClassSystem.aspect_display(id), preview["title"]]
 		btn.pressed.connect(func(): _invest(id))
 		options_box.add_child(btn)
 

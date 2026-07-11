@@ -63,6 +63,13 @@ At each level-up the player either:
 - **Deepen** — add a level to an Aspect they already have, or
 - **Mix** — invest the level into a *new* Aspect.
 
+Levels are **earned as XP in dungeon runs** (v0.6): kills grant party-shared XP
+(scaled by room depth, no kill-stealing), extraction pays a completion bonus,
+and the level-up cost curve grows with total level. Creation grants exactly one
+free investment — the starting Aspect; every level after that is earned. The
+fork itself is surfaced **mid-run**: when your banked XP covers the next level,
+a Level Up prompt appears and the dungeon does not pause while you choose.
+
 ### 3.3 Emergent Abilities, Chosen Identity
 
 Two things come out of your Aspect set — and we deliberately handle them
@@ -221,8 +228,13 @@ See `scripts/autoload/NetworkManager.gd`.
   (host shares one int; every peer generates the identical board), wall
   collision, depth-scaled enemies with chase AI, depth-scaled loot, a boss
   guarding the exit portal, minimap, and the extract-to-lobby loop. ✅
-- **v0.6:** XP from kills + the in-run level-up fork — surface the signature
-  "deepen vs mix" moment inside the dungeon loop.
+- **v0.6:** XP from kills + the in-run level-up fork — party-shared,
+  depth-scaled XP granted by the authoritative server; banked XP is spent
+  mid-run in a deepen-vs-mix overlay (same preview engine as creation); the
+  server refreshes combat stats live on level-up; creation trimmed to a single
+  free starting investment so the XP economy is real. ✅
+- **v0.7:** Town/hub scene + shop — gold from runs, Respec Tokens for sale,
+  the first full pass of the target game loop (section 5).
 
 ## 7. Resolved Decisions
 

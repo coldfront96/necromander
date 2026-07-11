@@ -5,6 +5,7 @@ extends Node
 
 signal character_changed(build: CharacterBuild)
 signal loot_received(item: Dictionary)
+signal xp_gained(amount: int)
 
 var player_build: CharacterBuild = null
 
@@ -26,6 +27,15 @@ func receive_loot(item: Dictionary) -> void:
 	player_build.inventory.append(item)
 	save()
 	loot_received.emit(item)
+
+## Bank XP granted by the authoritative server (v0.6) and persist. Spending it
+## (the deepen-vs-mix fork) stays a player choice — see CharacterBuild.level_up.
+func receive_xp(amount: int) -> void:
+	if player_build == null or amount <= 0:
+		return
+	player_build.xp += amount
+	save()
+	xp_gained.emit(amount)
 
 func has_character() -> bool:
 	return player_build != null

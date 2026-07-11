@@ -1,5 +1,5 @@
 extends Node2D
-## v0.2 + v0.3 — a shared, server-authoritative room with combat.
+## v0.2–v0.5 — a shared, server-authoritative procedural dungeon.
 ##
 ## Authority model (DESIGN.md 4): the SERVER owns all truth — positions, HP,
 ## cooldowns, enemy state, and every damage/heal roll. Clients send only intent
@@ -7,31 +7,46 @@ extends Node2D
 ## client can move itself, hurt an enemy, or heal itself directly — it can only
 ## ask, and the server decides. Identity affinity (DESIGN.md 3.3) is applied
 ## server-side so build choices actually change your numbers.
+##
+## v0.5: the room is now a seed-generated dungeon (DungeonGenerator). The host
+## rolls the seed; every peer derives the identical layout locally, so only
+## dynamic state crosses the wire. Rooms get harder — and drop better loot —
+## the deeper they sit; clear the deepest room to open the exit portal, step
+## in, and the party extracts back to the lobby with a bonus reward.
 
 const MAIN_MENU := "res://scenes/main_menu/MainMenu.tscn"
+const LOBBY := "res://scenes/lobby/Lobby.tscn"
 
 # --- Movement
 const SPEED := 240.0
 const BROADCAST_HZ := 20.0
-const ROOM_MARGIN := 80.0
 const AVATAR_RADIUS := 22.0
 
 # --- Combat
 const COMBAT_HZ := 10.0
 const ENEMY_RADIUS := 24.0
+const BOSS_RADIUS := 36.0
 const ENEMY_HP := 70.0
 const ENEMY_ATTACK_INTERVAL := 1.5
 const ENEMY_ATTACK_RANGE := 90.0
 const ENEMY_ATTACK_DAMAGE := 6.0
-const ENEMY_RESPAWN := 4.0
+const ENEMY_AGGRO_RANGE := 300.0
+const ENEMY_SPEED := 95.0
+const ENEMY_DEPTH_HP := 0.35       # +35% HP per depth beyond the first room
+const ENEMY_DEPTH_DMG := 0.20      # +20% damage per depth beyond the first
+const BOSS_HP_MULT := 3.2
+const BOSS_DMG_MULT := 1.6
 const PLAYER_BASE_HP := 80.0
 const PLAYER_RESPAWN := 3.0
 
-# --- Loot (v0.4)
+# --- Loot (v0.4) — item level now scales with room depth (v0.5)
 const DROP_CHANCE := 0.7
 const PICKUP_RADIUS := 46.0
-const LOOT_MIN_ILVL := 1
-const LOOT_MAX_ILVL := 6
+const LOOT_MAX_ILVL := 12
+
+# --- Exit portal (v0.5)
+const PORTAL_RADIUS := 42.0
+const EXTRACT_DELAY := 3.5
 
 const PALETTE := [
 	Color(0.61, 0.42, 1.0), Color(0.42, 1.0, 0.81),
@@ -39,6 +54,14 @@ const PALETTE := [
 	Color(0.5, 0.7, 1.0), Color(1.0, 0.5, 0.7),
 ]
 const ENEMY_COLOR := Color(0.85, 0.30, 0.32)
+const BOSS_COLOR := Color(0.95, 0.20, 0.45)
+const FLOOR_COLOR := Color(0.12, 0.10, 0.16)
+const CORRIDOR_COLOR := Color(0.10, 0.085, 0.135)
+const SPAWN_TINT := Color(0.10, 0.14, 0.14)
+const EXIT_TINT := Color(0.15, 0.10, 0.19)
+
+# --- The shared board (identical on every peer, derived from the run seed)
+var layout: Dictionary
 
 # --- Server-authoritative state (meaningful only on the host)
 var positions: Dictionary = {}     # peer_id -> Vector2
@@ -47,15 +70,17 @@ var player_hp: Dictionary = {}     # peer_id -> float
 var player_max: Dictionary = {}    # peer_id -> float
 var player_respawn: Dictionary = {} # peer_id -> float (countdown; >0 = dead)
 var cooldowns: Dictionary = {}     # peer_id -> { ability_name: seconds_left }
-var enemies: Dictionary = {}       # eid -> { pos, hp, max, alive, respawn, atk }
+var enemies: Dictionary = {}       # eid -> { pos, hp, max, alive, atk, dmg, depth, room, boss }
 var ground_loot: Dictionary = {}   # loot_id -> { item, pos }
+var portal_active: bool = false    # true once the exit room is cleared
 var _next_loot_id: int = 0
 
 # --- Client render state (all peers)
 var targets: Dictionary = {}       # peer_id -> Vector2 (position snapshot)
 var c_players: Dictionary = {}     # peer_id -> { hp, max, dead }
-var c_enemies: Dictionary = {}     # eid -> { pos, hp, max }
+var c_enemies: Dictionary = {}     # eid -> { pos, hp, max, boss }
 var c_loot: Dictionary = {}        # loot_id -> { pos, rarity }
+var c_portal: bool = false
 var avatars: Dictionary = {}       # peer_id -> Token
 var enemy_tokens: Dictionary = {}  # eid -> Token
 var loot_tokens: Dictionary = {}   # loot_id -> Token
@@ -64,23 +89,27 @@ var loot_log: Label
 var _last_sent_input := Vector2.ZERO
 var _broadcast_accum := 0.0
 var _combat_accum := 0.0
-var _room_rect: Rect2
+var _run_over := false
 var _local_cd: Dictionary = {}     # client-side predicted cooldowns for UI
 var joystick: Control
 var world: Node2D
+var camera: Camera2D
+var minimap: Minimap
+var portal_token: Token
 var hotbar: HBoxContainer
 var status_label: Label
+var banner_label: Label
 
 func _ready() -> void:
 	if not NetworkManager.is_active():
 		get_tree().change_scene_to_file(MAIN_MENU)
 		return
 
-	var view := get_viewport_rect().size
-	_room_rect = Rect2(ROOM_MARGIN, ROOM_MARGIN,
-		view.x - ROOM_MARGIN * 2.0, view.y - ROOM_MARGIN * 2.0)
+	# Every peer derives the same board from the host-rolled seed (v0.5).
+	layout = DungeonGenerator.generate(NetworkManager.run_seed)
 
-	_build_room(view)
+	var view := get_viewport_rect().size
+	_build_world()
 	_build_ui(view)
 
 	if NetworkManager.is_server():
@@ -93,27 +122,56 @@ func _ready() -> void:
 		NetworkManager.player_left.connect(_on_player_left)
 
 # ================================================================ build
-func _build_room(view: Vector2) -> void:
+func _build_world() -> void:
+	# Backdrop lives on its own layer so it fills the screen wherever the
+	# camera goes; the floor itself is world-space geometry.
+	var bg_layer := CanvasLayer.new()
+	bg_layer.layer = -1
 	var bg := ColorRect.new()
-	bg.color = Color(0.07, 0.06, 0.10)
-	bg.size = view
-	add_child(bg)
+	bg.color = Color(0.05, 0.045, 0.08)
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bg_layer.add_child(bg)
+	add_child(bg_layer)
 
-	var floor_rect := ColorRect.new()
-	floor_rect.color = Color(0.12, 0.10, 0.16)
-	floor_rect.position = _room_rect.position
-	floor_rect.size = _room_rect.size
-	add_child(floor_rect)
+	# Floors: corridors first (under), then rooms; spawn/exit rooms are tinted.
+	for c in layout["corridors"]:
+		add_child(_floor_rect(c, CORRIDOR_COLOR))
+	for room in layout["rooms"]:
+		var col := FLOOR_COLOR
+		match room["kind"]:
+			"spawn": col = SPAWN_TINT
+			"exit": col = EXIT_TINT
+		add_child(_floor_rect(room["rect"], col))
 
 	world = Node2D.new()
 	add_child(world)
+
+	# Exit portal — sealed until the deepest room is cleared.
+	portal_token = Token.new()
+	portal_token.radius = 30.0
+	portal_token.color = Color(0.35, 0.3, 0.45)
+	portal_token.position = layout["portal_pos"]
+	portal_token.set_label("Portal (sealed)")
+	world.add_child(portal_token)
+
+	camera = Camera2D.new()
+	camera.position = _spawn_room_center()
+	add_child(camera)
+	camera.make_current()
+
+func _floor_rect(r: Rect2, col: Color) -> ColorRect:
+	var cr := ColorRect.new()
+	cr.color = col
+	cr.position = r.position
+	cr.size = r.size
+	return cr
 
 func _build_ui(view: Vector2) -> void:
 	var ui := CanvasLayer.new()
 	add_child(ui)
 
 	var banner := Label.new()
-	banner.text = "Dungeon Room — move with the stick, tap an ability to cast"
+	banner.text = "Dungeon — clear the deepest room to open the portal"
 	banner.position = Vector2(20, 14)
 	banner.add_theme_color_override("font_color", Color(0.8, 0.8, 0.9))
 	ui.add_child(banner)
@@ -126,6 +184,20 @@ func _build_ui(view: Vector2) -> void:
 	loot_log = Label.new()
 	loot_log.position = Vector2(20, 62)
 	ui.add_child(loot_log)
+
+	# Big center announcement (used when the run completes).
+	banner_label = Label.new()
+	banner_label.text = ""
+	banner_label.add_theme_font_size_override("font_size", 34)
+	banner_label.add_theme_color_override("font_color", Color(0.61, 0.42, 1.0))
+	banner_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	banner_label.position = Vector2(0, view.y * 0.32)
+	banner_label.size = Vector2(view.x, 90)
+	ui.add_child(banner_label)
+
+	minimap = Minimap.new(layout)
+	minimap.position = Vector2(view.x - Minimap.MAP_SIZE.x - 16, 92)
+	ui.add_child(minimap)
 
 	joystick = preload("res://scenes/game/VirtualJoystick.gd").new()
 	joystick.position = Vector2(40, view.y - 40 - 180)
@@ -167,6 +239,9 @@ func _make_ability_button(ability_name: String) -> Button:
 	return b
 
 # ================================================================ spawning (server)
+func _spawn_room_center() -> Vector2:
+	return (layout["rooms"][layout["spawn"]]["rect"] as Rect2).get_center()
+
 func _spawn_player(id: int, index: int) -> void:
 	positions[id] = _spawn_point(index)
 	inputs[id] = Vector2.ZERO
@@ -176,18 +251,28 @@ func _spawn_player(id: int, index: int) -> void:
 	player_respawn[id] = 0.0
 	cooldowns[id] = {}
 
+## Enemies come from the generated layout: deeper rooms hold more and meaner
+## husks, and the exit room adds a boss guarding the portal.
 func _spawn_enemies() -> void:
-	var center := _room_rect.position + _room_rect.size * 0.5
-	var spots := [center + Vector2(0, -180), center + Vector2(-160, 120), center + Vector2(160, 120)]
 	var eid := 0
-	for spot in spots:
-		enemies[eid] = {"pos": spot, "hp": ENEMY_HP, "max": ENEMY_HP, "alive": true, "respawn": 0.0, "atk": ENEMY_ATTACK_INTERVAL}
+	for spawn in layout["enemies"]:
+		var depth: int = spawn["depth"]
+		var boss: bool = spawn["boss"]
+		var hp := ENEMY_HP * (1.0 + ENEMY_DEPTH_HP * float(depth - 1))
+		var dmg := ENEMY_ATTACK_DAMAGE * (1.0 + ENEMY_DEPTH_DMG * float(depth - 1))
+		if boss:
+			hp *= BOSS_HP_MULT
+			dmg *= BOSS_DMG_MULT
+		enemies[eid] = {
+			"pos": spawn["pos"], "hp": hp, "max": hp, "alive": true,
+			"atk": ENEMY_ATTACK_INTERVAL, "dmg": dmg,
+			"depth": depth, "room": spawn["room"], "boss": boss,
+		}
 		eid += 1
 
 func _spawn_point(index: int) -> Vector2:
-	var center := _room_rect.position + _room_rect.size * 0.5
 	var angle := float(index) * (TAU / float(NetworkManager.MAX_PLAYERS))
-	return center + Vector2(cos(angle), sin(angle)) * 110.0
+	return _spawn_room_center() + Vector2(cos(angle), sin(angle)) * 110.0
 
 func _on_player_joined(peer_id: int, _info: Dictionary) -> void:
 	if NetworkManager.is_server() and not positions.has(peer_id):
@@ -210,7 +295,7 @@ func _physics_process(delta: float) -> void:
 		return
 	_tick_local_cd(delta)
 	_handle_local_input()
-	if NetworkManager.is_server():
+	if NetworkManager.is_server() and not _run_over:
 		_server_step(delta)
 		_broadcast_accum += delta
 		if _broadcast_accum >= 1.0 / BROADCAST_HZ:
@@ -219,7 +304,7 @@ func _physics_process(delta: float) -> void:
 		_combat_accum += delta
 		if _combat_accum >= 1.0 / COMBAT_HZ:
 			_combat_accum = 0.0
-			_sync_combat.rpc(_pack_players(), _pack_enemies(), _pack_loot())
+			_sync_combat.rpc(_pack_players(), _pack_enemies(), _pack_loot(), portal_active)
 	_render(delta)
 	_update_status()
 
@@ -232,7 +317,7 @@ func _input_vector() -> Vector2:
 	return v.limit_length(1.0)
 
 func _handle_local_input() -> void:
-	if _is_local_dead():
+	if _is_local_dead() or _run_over:
 		return
 	var v := _input_vector()
 	if v.distance_to(_last_sent_input) <= 0.04:
@@ -249,33 +334,42 @@ func _server_step(delta: float) -> void:
 	for id in cooldowns.keys():
 		for ab in cooldowns[id].keys():
 			cooldowns[id][ab] = max(0.0, cooldowns[id][ab] - delta)
-	# player respawns
+	# player respawns — back at the entrance; the walk back is the price.
 	for id in player_respawn.keys():
 		if player_respawn[id] > 0.0:
 			player_respawn[id] -= delta
 			if player_respawn[id] <= 0.0:
 				player_hp[id] = player_max[id]
 				positions[id] = _spawn_point(0)
-	# movement (only the living move)
+	# movement (only the living move) — walls are real now (v0.5)
 	for id in positions.keys():
 		if _is_dead(id):
 			continue
 		var intent: Vector2 = inputs.get(id, Vector2.ZERO)
 		if intent != Vector2.ZERO:
-			positions[id] = _clamp_to_room(positions[id] + intent.limit_length(1.0) * SPEED * delta)
-	# enemies
+			positions[id] = _slide_move(positions[id],
+				intent.limit_length(1.0) * SPEED * delta, AVATAR_RADIUS)
+	# enemies: dead stay dead (you *clear* a dungeon); the living chase & bite
 	for eid in enemies.keys():
 		var e: Dictionary = enemies[eid]
 		if not e["alive"]:
-			e["respawn"] -= delta
-			if e["respawn"] <= 0.0:
-				e["alive"] = true
-				e["hp"] = e["max"]
 			continue
+		var radius: float = BOSS_RADIUS if e["boss"] else ENEMY_RADIUS
+		var prey := _nearest_player(e["pos"], ENEMY_AGGRO_RANGE)
+		if prey != -1:
+			var to: Vector2 = positions[prey] - e["pos"]
+			if to.length() > ENEMY_ATTACK_RANGE * 0.6:
+				e["pos"] = _slide_move(e["pos"], to.normalized() * ENEMY_SPEED * delta, radius)
 		e["atk"] -= delta
 		if e["atk"] <= 0.0:
 			e["atk"] = ENEMY_ATTACK_INTERVAL
-			_enemy_attack(e["pos"])
+			_enemy_attack(e["pos"], e["dmg"])
+	# portal: any living player standing in the open portal extracts the party
+	if portal_active:
+		for id in positions.keys():
+			if not _is_dead(id) and positions[id].distance_to(layout["portal_pos"]) <= PORTAL_RADIUS:
+				_finish_run()
+				break
 	# Auto-pickup: hand each ground item to the nearest living player in range.
 	for lid in ground_loot.keys():
 		var loot: Dictionary = ground_loot[lid]
@@ -283,6 +377,20 @@ func _server_step(delta: float) -> void:
 		if who != -1:
 			ground_loot.erase(lid)
 			_award_loot(who, loot["item"])
+
+## Move with axis-sliding collision against the dungeon floor plan: try the
+## full motion, then each axis alone, so walls feel like walls, not glue.
+func _slide_move(from: Vector2, motion: Vector2, radius: float) -> Vector2:
+	var dest := from + motion
+	if DungeonGenerator.walkable(layout, dest, radius):
+		return dest
+	dest = from + Vector2(motion.x, 0.0)
+	if motion.x != 0.0 and DungeonGenerator.walkable(layout, dest, radius):
+		return dest
+	dest = from + Vector2(0.0, motion.y)
+	if motion.y != 0.0 and DungeonGenerator.walkable(layout, dest, radius):
+		return dest
+	return from
 
 func _nearest_player(from: Vector2, rng: float) -> int:
 	var best := -1
@@ -304,21 +412,16 @@ func _award_loot(peer_id: int, item: Dictionary) -> void:
 	else:
 		_grant_loot.rpc_id(peer_id, item)
 
-func _enemy_attack(from: Vector2) -> void:
+func _enemy_attack(from: Vector2, dmg: float) -> void:
 	for id in positions.keys():
 		if _is_dead(id):
 			continue
 		if positions[id].distance_to(from) <= ENEMY_ATTACK_RANGE:
-			_damage_player(id, ENEMY_ATTACK_DAMAGE)
-
-func _clamp_to_room(p: Vector2) -> Vector2:
-	return Vector2(
-		clamp(p.x, _room_rect.position.x + AVATAR_RADIUS, _room_rect.end.x - AVATAR_RADIUS),
-		clamp(p.y, _room_rect.position.y + AVATAR_RADIUS, _room_rect.end.y - AVATAR_RADIUS))
+			_damage_player(id, dmg)
 
 # ================================================================ casting (server-authoritative)
 func _try_cast(ability_name: String) -> void:
-	if _is_local_dead():
+	if _is_local_dead() or _run_over:
 		return
 	var def := ClassSystem.ability_def(ability_name)
 	# Client-side cooldown prediction for snappy UI; server is the real gate.
@@ -336,7 +439,7 @@ func _cast(ability_name: String) -> void:
 		_resolve_cast(multiplayer.get_remote_sender_id(), ability_name)
 
 func _resolve_cast(peer_id: int, ability_name: String) -> void:
-	if _is_dead(peer_id) or not positions.has(peer_id):
+	if _run_over or _is_dead(peer_id) or not positions.has(peer_id):
 		return
 	var build := _build_for(peer_id)
 	# Anti-cheat: you can only cast abilities you actually know.
@@ -409,15 +512,39 @@ func _damage_enemy(eid: int, dmg: float) -> void:
 	if e["hp"] <= 0.0:
 		e["hp"] = 0.0
 		e["alive"] = false
-		e["respawn"] = ENEMY_RESPAWN
-		_maybe_drop(e["pos"])
+		_maybe_drop(e["pos"], e["depth"], e["boss"])
+		_check_portal(e["room"])
 
-func _maybe_drop(pos: Vector2) -> void:
-	if randf() > DROP_CHANCE:
+## The portal opens the moment the exit room is cleared.
+func _check_portal(room_idx: int) -> void:
+	if portal_active or room_idx != int(layout["exit"]):
 		return
-	var item := LootSystem.roll_drop(randi_range(LOOT_MIN_ILVL, LOOT_MAX_ILVL))
+	for eid in enemies.keys():
+		var e: Dictionary = enemies[eid]
+		if e["room"] == room_idx and e["alive"]:
+			return
+	portal_active = true
+
+## Depth is the loot dial (v0.5): deeper rooms roll higher item levels, and
+## bosses always drop.
+func _maybe_drop(pos: Vector2, depth: int, boss: bool) -> void:
+	if not boss and randf() > DROP_CHANCE:
+		return
+	var ilvl := clampi(randi_range(1 + depth, 2 + depth * 2), 1, LOOT_MAX_ILVL)
+	var item := LootSystem.roll_drop(ilvl)
 	ground_loot[_next_loot_id] = {"item": item, "pos": pos}
 	_next_loot_id += 1
+
+## Extraction (server): bonus reward for every party member, then send
+## everyone back to the lobby together.
+func _finish_run() -> void:
+	if _run_over:
+		return
+	var exit_depth: int = layout["rooms"][layout["exit"]]["depth"]
+	for id in NetworkManager.players.keys():
+		var bonus := LootSystem.roll_drop(clampi(2 + exit_depth * 2, 1, LOOT_MAX_ILVL))
+		_award_loot(id, bonus)
+	_complete_run.rpc()
 
 func _damage_player(peer_id: int, dmg: float) -> void:
 	if not player_hp.has(peer_id):
@@ -453,10 +580,11 @@ func _sync_positions(snapshot: Dictionary) -> void:
 	targets = snapshot.duplicate(true)
 
 @rpc("authority", "call_local", "unreliable_ordered")
-func _sync_combat(players: Dictionary, mobs: Dictionary, loot: Dictionary) -> void:
+func _sync_combat(players: Dictionary, mobs: Dictionary, loot: Dictionary, portal: bool) -> void:
 	c_players = players
 	c_enemies = mobs
 	c_loot = loot
+	c_portal = portal
 
 ## Server -> owning client: "you picked this up." Bag it and persist.
 @rpc("authority", "call_remote", "reliable")
@@ -470,6 +598,20 @@ func _apply_grant(item: Dictionary) -> void:
 		loot_log.add_theme_color_override("font_color", col)
 		loot_log.text = "Looted: %s" % item.get("name", "item")
 
+## Server -> all peers: run complete. Celebrate, then extract to the lobby
+## together (the party stays connected for the next run).
+@rpc("authority", "call_local", "reliable")
+func _complete_run() -> void:
+	_run_over = true
+	banner_label.text = "DUNGEON CLEARED!\nExtracting…"
+	# Capture the tree, not self: if this peer bails to the menu during the
+	# delay, the node is freed but the timer still fires safely — and
+	# is_active() is false by then, so nothing happens.
+	var tree := get_tree()
+	tree.create_timer(EXTRACT_DELAY).timeout.connect(func():
+		if NetworkManager.is_active():
+			tree.change_scene_to_file(LOBBY))
+
 func _pack_players() -> Dictionary:
 	var out := {}
 	for id in player_hp.keys():
@@ -480,7 +622,8 @@ func _pack_enemies() -> Dictionary:
 	var out := {}
 	for eid in enemies.keys():
 		if enemies[eid]["alive"]:
-			out[eid] = {"pos": enemies[eid]["pos"], "hp": enemies[eid]["hp"], "max": enemies[eid]["max"]}
+			out[eid] = {"pos": enemies[eid]["pos"], "hp": enemies[eid]["hp"],
+				"max": enemies[eid]["max"], "boss": enemies[eid]["boss"]}
 	return out
 
 func _pack_loot() -> Dictionary:
@@ -508,11 +651,24 @@ func _render(delta: float) -> void:
 		if not targets.has(id):
 			avatars[id].queue_free()
 			avatars.erase(id)
+	# Camera + minimap follow the local avatar
+	var me: Token = avatars.get(NetworkManager.local_id())
+	if me != null:
+		camera.position = camera.position.lerp(me.position, clamp(delta * 8.0, 0.0, 1.0))
+		minimap.player_pos = me.position
+	minimap.exit_open = c_portal
+	minimap.queue_redraw()
+	# Exit portal state
+	if c_portal and not portal_token.is_open:
+		portal_token.is_open = true
+		portal_token.color = Color(0.61, 0.42, 1.0)
+		portal_token.set_label("PORTAL — step in!")
+		portal_token.queue_redraw()
 	# Enemies
 	for eid in c_enemies.keys():
 		var et: Token = enemy_tokens.get(eid)
 		if et == null:
-			et = _make_enemy_token()
+			et = _make_enemy_token(c_enemies[eid].get("boss", false))
 			enemy_tokens[eid] = et
 			world.add_child(et)
 		et.position = c_enemies[eid]["pos"]
@@ -546,12 +702,12 @@ func _make_player_token(peer_id: int) -> Token:
 	tok.set_label("%s\n%s" % [info.get("name", "Player %d" % peer_id), info.get("class_title", "")])
 	return tok
 
-func _make_enemy_token() -> Token:
+func _make_enemy_token(boss: bool) -> Token:
 	var tok := Token.new()
-	tok.radius = ENEMY_RADIUS
-	tok.color = ENEMY_COLOR
+	tok.radius = BOSS_RADIUS if boss else ENEMY_RADIUS
+	tok.color = BOSS_COLOR if boss else ENEMY_COLOR
 	tok.is_square = true
-	tok.set_label("Dummy")
+	tok.set_label("Dread Husk" if boss else "Husk")
 	return tok
 
 func _tick_local_cd(delta: float) -> void:
@@ -561,7 +717,7 @@ func _tick_local_cd(delta: float) -> void:
 		for btn in hotbar.get_children():
 			var ab: String = btn.get_meta("ability", "")
 			var left: float = _local_cd.get(ab, 0.0)
-			btn.disabled = left > 0.0 or _is_local_dead()
+			btn.disabled = left > 0.0 or _is_local_dead() or _run_over
 			btn.text = ("%s\n%.1fs" % [ab, left]) if left > 0.0 else ab
 
 func _update_status() -> void:
@@ -572,7 +728,8 @@ func _update_status() -> void:
 		hp_txt = "   HP %d/%d" % [int(me["hp"]), int(me["max"])]
 		if me.get("dead", false):
 			hp_txt += "  (down — respawning)"
-	status_label.text = "%s%s" % [role, hp_txt]
+	var hunt := "   PORTAL OPEN!" if c_portal else "   Husks left: %d" % c_enemies.size()
+	status_label.text = "%s%s%s" % [role, hp_txt, hunt]
 
 # ---- floating numbers / projectile lines (cosmetic, all peers)
 @rpc("authority", "call_local", "unreliable")
@@ -598,25 +755,67 @@ func _fx_line(from: Vector2, to: Vector2, is_attack: bool) -> void:
 	tw.tween_property(line, "modulate:a", 0.0, 0.18)
 	tw.tween_callback(line.queue_free)
 
+# ================================================================ minimap
+## Screen-space overview of the generated layout: rooms, corridors, the exit,
+## and you. Everyone has the same map (it's derived from the shared seed), so
+## there's nothing to sync — it's pure presentation.
+class Minimap extends Control:
+	const MAP_SIZE := Vector2(190, 190)
+	const PAD := 8.0
+	var layout: Dictionary
+	var player_pos: Vector2 = Vector2.INF
+	var exit_open := false
+	var _scale: float
+	var _offset: Vector2
+
+	func _init(l: Dictionary) -> void:
+		layout = l
+		custom_minimum_size = MAP_SIZE
+		size = MAP_SIZE
+		var b: Rect2 = layout["bounds"]
+		var inner := MAP_SIZE - Vector2(PAD, PAD) * 2.0
+		_scale = minf(inner.x / b.size.x, inner.y / b.size.y)
+		_offset = Vector2(PAD, PAD) + (inner - b.size * _scale) * 0.5 - b.position * _scale
+
+	func _map(r: Rect2) -> Rect2:
+		return Rect2(r.position * _scale + _offset, r.size * _scale)
+
+	func _draw() -> void:
+		draw_rect(Rect2(Vector2.ZERO, MAP_SIZE), Color(0.0, 0.0, 0.0, 0.5))
+		for c in layout["corridors"]:
+			draw_rect(_map(c), Color(0.45, 0.42, 0.55, 0.6))
+		for i in layout["rooms"].size():
+			var room: Dictionary = layout["rooms"][i]
+			var col := Color(0.5, 0.48, 0.6)
+			if i == int(layout["spawn"]):
+				col = Color(0.32, 0.7, 0.6)
+			elif i == int(layout["exit"]):
+				col = Color(0.61, 0.42, 1.0) if exit_open else Color(0.4, 0.28, 0.55)
+			draw_rect(_map(room["rect"]), col)
+		if player_pos != Vector2.INF:
+			draw_circle(player_pos * _scale + _offset, 4.0, Color.WHITE)
+
 # ================================================================ token visual
-## A drawn token (player circle or enemy square) with a name label and HP bar.
-## No art assets needed yet.
+## A drawn token (player circle, enemy square, loot diamond, or the portal)
+## with a name label and HP bar. No art assets needed yet.
 class Token extends Node2D:
 	var radius: float = 22.0
 	var color: Color = Color.WHITE
 	var is_local: bool = false
 	var is_square: bool = false
+	var is_open: bool = false    # portal only: draw an inviting ring
 	var hp_ratio: float = -1.0   # <0 hides the bar
 	var dead: bool = false
 	var _label: Label
 
 	func set_label(text: String) -> void:
-		_label = Label.new()
+		if _label == null:
+			_label = Label.new()
+			_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			_label.position = Vector2(-60, -radius - 38)
+			_label.custom_minimum_size = Vector2(120, 0)
+			add_child(_label)
 		_label.text = text
-		_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		_label.position = Vector2(-60, -radius - 38)
-		_label.custom_minimum_size = Vector2(120, 0)
-		add_child(_label)
 
 	func set_hp(hp: float, maxhp: float) -> void:
 		var r := -1.0 if hp < 0.0 or maxhp <= 0.0 else clamp(hp / maxhp, 0.0, 1.0)
@@ -639,6 +838,8 @@ class Token extends Node2D:
 			draw_circle(Vector2.ZERO, radius, c)
 		if is_local and not dead:
 			draw_arc(Vector2.ZERO, radius + 5.0, 0.0, TAU, 32, Color.WHITE, 2.5, true)
+		if is_open:
+			draw_arc(Vector2.ZERO, radius + 8.0, 0.0, TAU, 40, Color(0.85, 0.75, 1.0), 3.0, true)
 		if hp_ratio >= 0.0:
 			var w := radius * 2.0
 			var y := -radius - 12.0

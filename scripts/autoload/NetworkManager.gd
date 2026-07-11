@@ -21,6 +21,12 @@ const GAME_SCENE := "res://scenes/game/DungeonRoom.tscn"
 ## peer_id -> { name, race, class_title, aspect_set, ready }
 var players: Dictionary = {}
 
+## Seed of the current dungeon run. Rolled by the host in start_game() and
+## delivered to every peer with the scene-change RPC — each peer then derives
+## the identical layout locally via DungeonGenerator (v0.5), so the geometry
+## itself never has to be synced.
+var run_seed: int = 0
+
 func _ready() -> void:
 	multiplayer.peer_connected.connect(_on_peer_connected)
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
@@ -149,13 +155,15 @@ func set_ready(value: bool) -> void:
 		_request_ready.rpc_id(1, local_id(), value)
 
 # ---------------------------------------------------------------- start game
-## Host launches the party into the shared room; every peer loads it in lockstep.
+## Host rolls the dungeon seed and launches the party; every peer loads the
+## scene in lockstep and generates the same layout from the shared seed.
 func start_game() -> void:
 	if is_server():
-		_load_game.rpc()
+		_load_game.rpc(randi())
 
 @rpc("authority", "call_local", "reliable")
-func _load_game() -> void:
+func _load_game(seed_value: int) -> void:
+	run_seed = seed_value
 	game_started.emit()
 	get_tree().change_scene_to_file(GAME_SCENE)
 

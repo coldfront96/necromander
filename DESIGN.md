@@ -217,7 +217,12 @@ See `scripts/autoload/NetworkManager.gd`.
   data-driven abilities, touch hotbar, affinity applied to damage/heal. ✅
 - **v0.4:** Loot + persistence — data-driven drops, gear that scales combat
   (the lateral power axis), inventory/equipment screen, local save/load. ✅
-- **v0.5:** Procedural dungeon generation.
+- **v0.5:** Procedural dungeon generation — seed-derived room-graph layouts
+  (host shares one int; every peer generates the identical board), wall
+  collision, depth-scaled enemies with chase AI, depth-scaled loot, a boss
+  guarding the exit portal, minimap, and the extract-to-lobby loop. ✅
+- **v0.6:** XP from kills + the in-run level-up fork — surface the signature
+  "deepen vs mix" moment inside the dungeon loop.
 
 ## 7. Resolved Decisions
 

@@ -21,6 +21,8 @@ open up. The combination space is near-unlimited.
 ```
 data/combinations.json          # the class/aspect registry (data-driven)
 scripts/model/CharacterBuild.gd  # a character's aspect investments
+scripts/dungeon/
+  DungeonGenerator.gd            # seed-driven procedural layouts (v0.5)
 scripts/autoload/
   ClassSystem.gd                 # resolves emergent class identity from a build
   GameState.gd                   # local session/character state
@@ -29,6 +31,7 @@ scenes/
   main_menu/                     # title screen
   character_creation/            # pick race + starting aspect, deepen/mix loop
   lobby/                         # host/join party, synced roster
+  game/                          # the shared, server-authoritative dungeon run
 ```
 
 ## Run it
@@ -43,19 +46,26 @@ scenes/
 - In window A: create a character → **Host** a lobby.
 - In window B: create a character → **Join** `127.0.0.1`.
 - Watch the roster sync. Then in the host window press **Start Run (host)** —
-  both clients load the shared **Dungeon Room** and can move around with the
-  on-screen stick (or arrow keys) while the server keeps everyone in sync.
+  the host rolls a seed and every peer generates the **same procedural dungeon**
+  (rooms + corridors on a room-graph; only the seed crosses the wire). Move with
+  the on-screen stick (or arrow keys); walls are real, the camera follows you,
+  and the **minimap** (top-right) shows the layout and the exit room.
 - Tap an ability on the **hotbar** (built from your loadout) to fight the
-  **target dummies** — the server resolves damage/healing, applies your identity
-  affinity bonus, and broadcasts HP to everyone. Dummies hit back, so healing
-  abilities matter; downed players respawn.
-- Dummies **drop loot** (rarity-colored diamonds) — walk over a drop to pick it
-  up. Open **Inventory** from the main menu to equip gear; its stats scale your
-  damage/healing/HP server-side. Your character (build, gear, gold) **saves
-  automatically** — use **Continue** on the title screen next launch.
+  **husks** — the server resolves damage/healing, applies your identity
+  affinity bonus, and broadcasts HP to everyone. Husks chase and hit back, and
+  they get **meaner the deeper the room** — healing matters; downed players
+  respawn back at the entrance.
+- Husks **drop loot** (rarity-colored diamonds) that rolls **higher item levels
+  in deeper rooms** — walk over a drop to pick it up. Open **Inventory** from
+  the main menu to equip gear; its stats scale your damage/healing/HP
+  server-side. Your character (build, gear, gold) **saves automatically** —
+  use **Continue** on the title screen next launch.
+- Clear the deepest room (a **boss** guards it) to open the **exit portal** —
+  step in and the whole party extracts back to the lobby with a bonus reward,
+  ready to roll the next dungeon.
 
 ## Status
 
-v0 baseline — see the roadmap in [DESIGN.md](DESIGN.md#6-roadmap).
-The next milestone (v0.1) is a dedicated level-up screen with the live
-"deepen vs mix" class preview already prototyped in character creation.
+v0.5 — procedural dungeons are in; see the roadmap in
+[DESIGN.md](DESIGN.md#6-roadmap). Next up (v0.6): XP from kills and the in-run
+"deepen vs mix" level-up fork.

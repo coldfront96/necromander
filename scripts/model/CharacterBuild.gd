@@ -36,6 +36,12 @@ extends Resource
 ## is always the player's choice (level_up below).
 @export var xp: int = 0
 
+## Respec (v0.7, DESIGN.md 3.6): tokens are bought in the shop with gold (or
+## later, real money). Spending one refunds every invested level into
+## free_points, to be re-allocated one fork at a time.
+@export var respec_tokens: int = 0
+@export var free_points: int = 0             ## refunded levels awaiting re-investment
+
 const GEAR_SLOTS := ["weapon", "armor", "trinket"]
 
 ## Equip an item from inventory; any item already in that slot returns to the bag.
@@ -163,6 +169,27 @@ func level_up(aspect_id: String) -> bool:
 	invest(aspect_id, 1)
 	return true
 
+# --- Respec (v0.7, DESIGN.md 3.6) ----------------------------------------------
+## Consume a Respec Token: every invested level comes back as a free point to
+## re-allocate. XP is untouched — these levels were already paid for. The caller
+## must prune the loadout and chosen identity afterwards (ClassSystem), since a
+## bare build no longer qualifies for anything.
+func respec() -> bool:
+	if respec_tokens <= 0 or total_level() == 0:
+		return false
+	respec_tokens -= 1
+	free_points += total_level()
+	aspect_levels.clear()
+	return true
+
+## Re-invest one refunded point. No XP cost — same fork, prepaid.
+func invest_free_point(aspect_id: String) -> bool:
+	if free_points <= 0:
+		return false
+	free_points -= 1
+	invest(aspect_id, 1)
+	return true
+
 func level_in(aspect_id: String) -> int:
 	return int(aspect_levels.get(aspect_id, 0))
 
@@ -191,6 +218,8 @@ func duplicate_build() -> CharacterBuild:
 	copy.equipment = equipment.duplicate(true)
 	copy.gold = gold
 	copy.xp = xp
+	copy.respec_tokens = respec_tokens
+	copy.free_points = free_points
 	return copy
 
 func to_dict() -> Dictionary:
@@ -205,6 +234,8 @@ func to_dict() -> Dictionary:
 		"equipment": equipment.duplicate(true),
 		"gold": gold,
 		"xp": xp,
+		"respec_tokens": respec_tokens,
+		"free_points": free_points,
 	}
 
 static func from_dict(d: Dictionary) -> CharacterBuild:
@@ -219,4 +250,6 @@ static func from_dict(d: Dictionary) -> CharacterBuild:
 	b.equipment = (d.get("equipment", {}) as Dictionary).duplicate(true)
 	b.gold = int(d.get("gold", 0))
 	b.xp = int(d.get("xp", 0))
+	b.respec_tokens = int(d.get("respec_tokens", 0))
+	b.free_points = int(d.get("free_points", 0))
 	return b

@@ -6,6 +6,7 @@ extends Node
 signal character_changed(build: CharacterBuild)
 signal loot_received(item: Dictionary)
 signal xp_gained(amount: int)
+signal gold_gained(amount: int)
 
 var player_build: CharacterBuild = null
 
@@ -36,6 +37,15 @@ func receive_xp(amount: int) -> void:
 	player_build.xp += amount
 	save()
 	xp_gained.emit(amount)
+
+## Bank gold granted by the authoritative server (v0.7) and persist. Gold is
+## the shop currency — Respec Tokens, gamble caches (DESIGN.md 3.6).
+func receive_gold(amount: int) -> void:
+	if player_build == null or amount <= 0:
+		return
+	player_build.gold += amount
+	save()
+	gold_gained.emit(amount)
 
 func has_character() -> bool:
 	return player_build != null

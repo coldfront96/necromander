@@ -20,6 +20,7 @@ open up. The combination space is near-unlimited.
 
 ```
 data/combinations.json          # the class/aspect registry (data-driven)
+data/shop.json                  # the town shop catalog (data-driven)
 scripts/model/CharacterBuild.gd  # a character's aspect investments
 scripts/dungeon/
   DungeonGenerator.gd            # seed-driven procedural layouts (v0.5)
@@ -29,7 +30,8 @@ scripts/autoload/
   NetworkManager.gd              # authoritative multiplayer lobby (ENet)
 scenes/
   main_menu/                     # title screen
-  character_creation/            # pick race + starting aspect, deepen/mix loop
+  character_creation/            # pick race + starting aspect
+  town/                          # Emberrest hub: shop, respec tent (v0.7)
   lobby/                         # host/join party, synced roster
   game/                          # the shared, server-authoritative dungeon run
 ```
@@ -60,17 +62,23 @@ scenes/
   the main menu to equip gear; its stats scale your damage/healing/HP
   server-side. Your character (build, gear, gold, XP) **saves automatically** —
   use **Continue** on the title screen next launch.
-- Kills also grant **party-shared XP** (deeper rooms pay more). When your bank
-  covers the next level, a **▲ LEVEL UP!** button lights up — tap it to face
-  the signature fork *mid-run*: **deepen** an Aspect or **mix** in a new one,
-  with a live preview of the class you'd become. The dungeon doesn't pause, so
-  choose fast. Your new abilities and HP apply immediately.
+- Kills also grant **party-shared XP and gold** (deeper rooms pay more). When
+  your XP bank covers the next level, a **▲ LEVEL UP!** button lights up — tap
+  it to face the signature fork *mid-run*: **deepen** an Aspect or **mix** in a
+  new one, with a live preview of the class you'd become. The dungeon doesn't
+  pause, so choose fast. Your new abilities and HP apply immediately.
+- Between runs you're in **Emberrest**, the town hub: the **Shop** sells
+  **Respec Tokens** and a **Gambler's Cache** (a random level-scaled item —
+  the gold sink), and the **Respec Tent** lets a token refund *every* invested
+  level to re-allocate through the same fork previews — walk a completely new
+  road on the same character, gear and XP intact.
 - Clear the deepest room (a **boss** guards it) to open the **exit portal** —
   step in and the whole party extracts back to the lobby with a bonus reward,
   ready to roll the next dungeon.
 
 ## Status
 
-v0.6 — XP and the in-run "deepen vs mix" level-up fork are live; see the
-roadmap in [DESIGN.md](DESIGN.md#6-roadmap). Next up (v0.7): a town/hub scene
-and shop (gold, Respec Tokens) — the first full pass of the target game loop.
+v0.7 — the target game loop is complete end to end: town → party up →
+procedural dungeon → mid-run level-up forks → extract with loot, XP & gold →
+shop/respec → dive again. See the roadmap in [DESIGN.md](DESIGN.md#6-roadmap).
+Next up (v0.8): dungeon tiers, enemy variety, and the death-penalty question.

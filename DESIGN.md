@@ -204,12 +204,12 @@ can level forever, but raw level power flattens and other systems take over.
 
 See `scripts/autoload/NetworkManager.gd`.
 
-## 5. Game Loop (target)
+## 5. Game Loop (implemented in v0.7)
 
-1. **Town / Hub** — manage character, party up, pick a dungeon.
+1. **Town / Hub** — Emberrest: manage character, shop, respec, party up.
 2. **Dungeon Run** — procedurally assembled rooms, combat, loot.
-3. **Level-up choice** — deepen or mix (the signature moment).
-4. **Extract / Return** — bank loot & XP, repeat.
+3. **Level-up choice** — deepen or mix (the signature moment), mid-run.
+4. **Extract / Return** — bank loot, XP & gold, repeat.
 
 ## 6. Roadmap
 
@@ -233,8 +233,14 @@ See `scripts/autoload/NetworkManager.gd`.
   mid-run in a deepen-vs-mix overlay (same preview engine as creation); the
   server refreshes combat stats live on level-up; creation trimmed to a single
   free starting investment so the XP economy is real. ✅
-- **v0.7:** Town/hub scene + shop — gold from runs, Respec Tokens for sale,
-  the first full pass of the target game loop (section 5).
+- **v0.7:** Town/hub + shop + respec — Emberrest is the new home base; kills
+  and extraction now grant party-shared gold; a data-driven shop sells Respec
+  Tokens (3.6) and a gamble-cache gold sink; the full respec flow works
+  (token → refund all levels → re-invest through the fork previews). The
+  target game loop (section 5) is now complete end to end. ✅
+- **v0.8:** Dungeon tiers & enemy variety — pick your difficulty in town,
+  new husk archetypes (ranged / caster), and a first pass at the in-dungeon
+  death penalty question (section 8).
 
 ## 7. Resolved Decisions
 

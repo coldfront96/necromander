@@ -1,0 +1,16 @@
+{
+  "offers": [
+    {
+      "id": "respec_token",
+      "name": "Respec Token",
+      "price": 400,
+      "desc": "Refund every invested level and walk a different road. Identity-level change is deliberate and valued — swapping active abilities is always free."
+    },
+    {
+      "id": "gamble",
+      "name": "Gambler's Cache",
+      "price": 150,
+      "desc": "A sealed cache holding one unidentified item scaled to your level. Fortune favors the bold."
+    }
+  ]
+}

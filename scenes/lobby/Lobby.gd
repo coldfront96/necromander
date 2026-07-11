@@ -2,7 +2,7 @@ extends Control
 ## Multiplayer lobby. Host a party (become the authoritative server) or join one
 ## by address. The roster is server-synced via NetworkManager (DESIGN.md 4).
 
-const MAIN_MENU := "res://scenes/main_menu/MainMenu.tscn"
+const TOWN := "res://scenes/town/Town.tscn"
 
 var address_edit: LineEdit
 var port_edit: LineEdit
@@ -97,7 +97,7 @@ func _ready() -> void:
 	start_button.add_theme_color_override("font_color", Color(0.42, 1.0, 0.81))
 	col.add_child(start_button)
 
-	var back := _btn("Back to Menu", func(): _on_leave(); get_tree().change_scene_to_file(MAIN_MENU))
+	var back := _btn("Back to Town", func(): _on_leave(); get_tree().change_scene_to_file(TOWN))
 	col.add_child(back)
 
 	# --- Wire up NetworkManager signals

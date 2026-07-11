@@ -4,9 +4,8 @@ extends Control
 ## hotbar slots. Mixed-aspect abilities can fully replace base ones or sit
 ## alongside them — entirely the player's choice. See DESIGN.md 3.5.
 
-const MAIN_MENU := "res://scenes/main_menu/MainMenu.tscn"
 const CHARACTER_CREATION := "res://scenes/character_creation/CharacterCreation.tscn"
-const LOBBY := "res://scenes/lobby/Lobby.tscn"
+const TOWN := "res://scenes/town/Town.tscn"
 
 var build: CharacterBuild
 var slots_label: Label
@@ -74,17 +73,12 @@ func _ready() -> void:
 	col.add_child(_divider())
 
 	continue_button = Button.new()
-	continue_button.text = "Continue to Lobby"
+	continue_button.text = "Done — to Town"
 	continue_button.custom_minimum_size = Vector2(0, 56)
 	continue_button.pressed.connect(func():
 		GameState.set_character(build)  # re-emit so listeners see the loadout
-		get_tree().change_scene_to_file(LOBBY))
+		get_tree().change_scene_to_file(TOWN))
 	col.add_child(continue_button)
-
-	var back := Button.new()
-	back.text = "Back to Character"
-	back.pressed.connect(func(): get_tree().change_scene_to_file(CHARACTER_CREATION))
-	col.add_child(back)
 
 	_refresh()
 

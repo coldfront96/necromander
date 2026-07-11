@@ -15,6 +15,7 @@ extends Node2D
 ## in, and the party extracts back to the lobby with a bonus reward.
 
 const MAIN_MENU := "res://scenes/main_menu/MainMenu.tscn"
+const TOWN := "res://scenes/town/Town.tscn"
 const LOBBY := "res://scenes/lobby/Lobby.tscn"
 
 # --- Movement
@@ -48,14 +49,19 @@ const LOOT_MAX_ILVL := 12
 const PORTAL_RADIUS := 42.0
 const EXTRACT_DELAY := 3.5
 
-# --- XP (v0.6) — party-shared: every member earns full XP on any kill, so
-# co-op never devolves into kill-stealing. Depth is the multiplier, extraction
-# pays a completion bonus. Spending XP (deepen vs mix) happens in-run too.
+# --- Kill rewards (v0.6 XP, v0.7 gold) — party-shared: every member earns the
+# full amount on any kill, so co-op never devolves into kill-stealing. Depth is
+# the multiplier, extraction pays a completion bonus. XP is spent in-run
+# (deepen vs mix); gold is spent in town (shop, Respec Tokens).
+const REWARD_DEPTH_BONUS := 0.5    # +50% per depth beyond the first room
 const XP_PER_KILL := 14.0
-const XP_DEPTH_BONUS := 0.5        # +50% per depth beyond the first room
 const XP_BOSS_MULT := 4.0
 const XP_EXTRACT_BASE := 40
 const XP_EXTRACT_PER_DEPTH := 30
+const GOLD_PER_KILL := 6.0
+const GOLD_BOSS_MULT := 4.0
+const GOLD_EXTRACT_BASE := 30
+const GOLD_EXTRACT_PER_DEPTH := 20
 
 const PALETTE := [
 	Color(0.61, 0.42, 1.0), Color(0.42, 1.0, 0.81),
@@ -253,7 +259,7 @@ func _build_ui(view: Vector2) -> void:
 	leave.custom_minimum_size = Vector2(100, 44)
 	leave.pressed.connect(func():
 		NetworkManager.leave()
-		get_tree().change_scene_to_file(MAIN_MENU))
+		get_tree().change_scene_to_file(TOWN))
 	ui.add_child(leave)
 
 func _local_hotbar_abilities() -> Array:
@@ -672,15 +678,16 @@ func _damage_enemy(eid: int, dmg: float) -> void:
 	if e["hp"] <= 0.0:
 		e["hp"] = 0.0
 		e["alive"] = false
-		_award_xp_party(_kill_xp(e["depth"], e["boss"]))
+		_award_xp_party(_kill_reward(XP_PER_KILL, XP_BOSS_MULT, e["depth"], e["boss"]))
+		_award_gold_party(_kill_reward(GOLD_PER_KILL, GOLD_BOSS_MULT, e["depth"], e["boss"]))
 		_maybe_drop(e["pos"], e["depth"], e["boss"])
 		_check_portal(e["room"])
 
-## XP for a kill, scaled by room depth; bosses pay a fat premium.
-func _kill_xp(depth: int, boss: bool) -> int:
-	var amount := XP_PER_KILL * (1.0 + XP_DEPTH_BONUS * float(depth - 1))
+## A kill reward (XP or gold), scaled by room depth; bosses pay a fat premium.
+func _kill_reward(base: float, boss_mult: float, depth: int, boss: bool) -> int:
+	var amount := base * (1.0 + REWARD_DEPTH_BONUS * float(depth - 1))
 	if boss:
-		amount *= XP_BOSS_MULT
+		amount *= boss_mult
 	return int(round(amount))
 
 ## Party-shared XP (server): every member banks the full amount — co-op should
@@ -693,6 +700,16 @@ func _award_xp_party(amount: int) -> void:
 			_apply_xp(amount)
 		else:
 			_grant_xp.rpc_id(id, amount)
+
+## Party-shared gold (server, v0.7) — the shop currency, same delivery path.
+func _award_gold_party(amount: int) -> void:
+	if amount <= 0:
+		return
+	for id in NetworkManager.players.keys():
+		if id == 1:
+			_apply_gold(amount)
+		else:
+			_grant_gold.rpc_id(id, amount)
 
 ## The portal opens the moment the exit room is cleared.
 func _check_portal(room_idx: int) -> void:
@@ -721,6 +738,7 @@ func _finish_run() -> void:
 		return
 	var exit_depth: int = layout["rooms"][layout["exit"]]["depth"]
 	_award_xp_party(XP_EXTRACT_BASE + XP_EXTRACT_PER_DEPTH * exit_depth)
+	_award_gold_party(GOLD_EXTRACT_BASE + GOLD_EXTRACT_PER_DEPTH * exit_depth)
 	for id in NetworkManager.players.keys():
 		var bonus := LootSystem.roll_drop(clampi(2 + exit_depth * 2, 1, LOOT_MAX_ILVL))
 		_award_loot(id, bonus)
@@ -778,6 +796,14 @@ func _grant_xp(amount: int) -> void:
 
 func _apply_xp(amount: int) -> void:
 	GameState.receive_xp(amount)
+
+## Server -> owning client: "you earned this gold." Bank it and persist (v0.7).
+@rpc("authority", "call_remote", "reliable")
+func _grant_gold(amount: int) -> void:
+	_apply_gold(amount)
+
+func _apply_gold(amount: int) -> void:
+	GameState.receive_gold(amount)
 
 func _apply_grant(item: Dictionary) -> void:
 	GameState.receive_loot(item)
@@ -923,7 +949,8 @@ func _update_status() -> void:
 	# which is the one true owner of banked XP.
 	var build: CharacterBuild = GameState.player_build
 	if build != null:
-		xp_label.text = "Lv %d   ·   XP %d / %d" % [build.total_level(), build.xp, build.xp_to_next()]
+		xp_label.text = "Lv %d   ·   XP %d / %d   ·   %d g" % [
+			build.total_level(), build.xp, build.xp_to_next(), build.gold]
 		levelup_button.visible = build.can_level_up() and not _run_over
 	else:
 		levelup_button.visible = false

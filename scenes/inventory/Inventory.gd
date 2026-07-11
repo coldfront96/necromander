@@ -4,6 +4,7 @@ extends Control
 ## session the server is told so its combat math uses the new gear.
 
 const MAIN_MENU := "res://scenes/main_menu/MainMenu.tscn"
+const TOWN := "res://scenes/town/Town.tscn"
 
 var build: CharacterBuild
 var stats_label: Label
@@ -62,9 +63,9 @@ func _ready() -> void:
 
 	col.add_child(_divider())
 	var back := Button.new()
-	back.text = "Back to Menu"
+	back.text = "Back to Town"
 	back.custom_minimum_size = Vector2(0, 52)
-	back.pressed.connect(func(): get_tree().change_scene_to_file(MAIN_MENU))
+	back.pressed.connect(func(): get_tree().change_scene_to_file(TOWN))
 	col.add_child(back)
 
 	_refresh()

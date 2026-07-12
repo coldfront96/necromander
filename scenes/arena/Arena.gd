@@ -544,7 +544,11 @@ func _make_player_token(peer_id: int) -> Token:
 	tok.radius = AVATAR_RADIUS
 	tok.color = PALETTE[abs(peer_id) % PALETTE.size()]
 	tok.is_local = peer_id == NetworkManager.local_id()
-	tok.set_label("%s\n%s" % [info.get("name", "Player %d" % peer_id), info.get("class_title", "")])
+	tok.ascension = int(info.get("ascension", 0))
+	var title: String = info.get("class_title", "")
+	if tok.ascension > 0:
+		title += "  ✦%d" % tok.ascension
+	tok.set_label("%s\n%s" % [info.get("name", "Player %d" % peer_id), title])
 	return tok
 
 func _tick_local_cd(delta: float) -> void:

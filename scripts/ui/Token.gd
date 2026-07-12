@@ -9,6 +9,7 @@ var color: Color = Color.WHITE
 var is_local: bool = false
 var is_square: bool = false
 var is_open: bool = false    # portal only: draw an inviting ring
+var ascension: int = 0       # >0 draws the gold prestige ring (v0.10)
 var hp_ratio: float = -1.0   # <0 hides the bar
 var dead: bool = false
 var _label: Label
@@ -45,6 +46,9 @@ func _draw() -> void:
 		draw_arc(Vector2.ZERO, radius + 5.0, 0.0, TAU, 32, Color.WHITE, 2.5, true)
 	if is_open:
 		draw_arc(Vector2.ZERO, radius + 8.0, 0.0, TAU, 40, Color(0.85, 0.75, 1.0), 3.0, true)
+	if ascension > 0 and not dead:
+		# Ascension prestige: a golden halo. Pure vanity, exactly as designed.
+		draw_arc(Vector2.ZERO, radius + 9.0, 0.0, TAU, 40, Color(1.0, 0.82, 0.35), 2.0, true)
 	if hp_ratio >= 0.0:
 		var w := radius * 2.0
 		var y := -radius - 12.0

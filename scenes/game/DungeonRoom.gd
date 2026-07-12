@@ -344,6 +344,19 @@ func _open_levelup() -> void:
 			btn.text += "  (uncharted)"
 		btn.pressed.connect(func(): _choose_level_up(id))
 		levelup_options.add_child(btn)
+	# Past the soft cap the fork gains a third road (v0.10): Ascend. Same XP
+	# price as a level — pure preference, breadth & prestige over a sliver of
+	# flattened stat power.
+	if build.past_soft_cap():
+		var a := Button.new()
+		a.custom_minimum_size = Vector2(0, 52)
+		a.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		var next_rank := build.ascension_rank + 1
+		var slots_txt := "loadout slots +%d/%d" % [build.ascension_slots(), CharacterBuild.MAX_ASCENSION_SLOTS]
+		a.text = "ASCEND  →  Rank ✦%d  (%s)" % [next_rank, slots_txt]
+		a.add_theme_color_override("font_color", Color(1.0, 0.82, 0.35))
+		a.pressed.connect(_choose_ascend)
+		levelup_options.add_child(a)
 	levelup_panel.visible = true
 
 func _choose_level_up(aspect_id: String) -> void:
@@ -362,6 +375,38 @@ func _choose_level_up(aspect_id: String) -> void:
 		_open_levelup()
 	else:
 		levelup_panel.visible = false
+
+## The third road (v0.10): spend the same XP on an Ascension rank — no stats,
+## just the capped slot drip and a golden halo.
+func _choose_ascend() -> void:
+	var build: CharacterBuild = GameState.player_build
+	if build == null or not build.ascend():
+		levelup_panel.visible = false
+		return
+	GameState.save()
+	NetworkManager.push_local_update()
+	_fx_ascend()
+	if build.can_level_up():
+		_open_levelup()
+	else:
+		levelup_panel.visible = false
+
+func _fx_ascend() -> void:
+	var me: Token = avatars.get(NetworkManager.local_id())
+	if me == null:
+		return
+	me.ascension = GameState.player_build.ascension_rank
+	me.queue_redraw()
+	var l := Label.new()
+	l.text = "✦ ASCENSION ✦"
+	l.add_theme_font_size_override("font_size", 24)
+	l.add_theme_color_override("font_color", Color(1.0, 0.82, 0.35))
+	l.position = me.position + Vector2(-70, -AVATAR_RADIUS - 62)
+	world.add_child(l)
+	var tw := create_tween()
+	tw.tween_property(l, "position", l.position + Vector2(0, -56), 1.1)
+	tw.parallel().tween_property(l, "modulate:a", 0.0, 1.1)
+	tw.tween_callback(l.queue_free)
 
 ## Known pool may have grown (a mix can unlock a whole new tree). The equipped
 ## loadout is untouched, but the fallback hotbar can widen.
@@ -982,7 +1027,11 @@ func _make_player_token(peer_id: int) -> Token:
 	tok.radius = AVATAR_RADIUS
 	tok.color = PALETTE[abs(peer_id) % PALETTE.size()]
 	tok.is_local = peer_id == NetworkManager.local_id()
-	tok.set_label("%s\n%s" % [info.get("name", "Player %d" % peer_id), info.get("class_title", "")])
+	tok.ascension = int(info.get("ascension", 0))
+	var title: String = info.get("class_title", "")
+	if tok.ascension > 0:
+		title += "  ✦%d" % tok.ascension
+	tok.set_label("%s\n%s" % [info.get("name", "Player %d" % peer_id), title])
 	return tok
 
 ## Enemy visuals come from the archetype's data entry (v0.8).

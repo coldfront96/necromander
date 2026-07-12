@@ -103,8 +103,7 @@ func past_soft_cap() -> bool:
 func max_loadout_slots() -> int:
 	var capped_level := min(total_level(), LEVEL_SOFT_CAP)
 	var from_levels := int(capped_level / 10)            # +1 every 10 levels (0..10)
-	var from_ascension := min(int(ascension_rank / 2), MAX_ASCENSION_SLOTS)
-	return BASE_SLOTS + from_levels + from_ascension
+	return BASE_SLOTS + from_levels + ascension_slots()
 
 func is_equipped(ability_name: String) -> bool:
 	return loadout.has(ability_name)
@@ -144,15 +143,17 @@ func invest(aspect_id: String, amount: int = 1) -> void:
 	aspect_levels[aspect_id] = int(aspect_levels.get(aspect_id, 0)) + amount
 
 # --- XP (v0.6) ----------------------------------------------------------------
-# The cost curve grows with total level, so early levels come fast (the on-ramp)
-# and later ones slow down — which pairs with level_power() flattening: past the
-# soft cap you still *can* level, it just takes longer and grants mostly breadth.
+# The cost curve grows with total PAID progressions — levels and Ascension
+# ranks share one price ladder (v0.10), so past the soft cap the fork between
+# "one more level" and "ascend" is cost-neutral: pure preference, no math trap.
+# Early levels come fast (the on-ramp) and later ones slow down — which pairs
+# with level_power() flattening.
 const XP_BASE := 50
 const XP_PER_LEVEL := 25
 
-## XP needed to bank the next level at the current total level.
+## XP needed for the next progression (level OR Ascension rank).
 func xp_to_next() -> int:
-	return XP_BASE + XP_PER_LEVEL * total_level()
+	return XP_BASE + XP_PER_LEVEL * (total_level() + ascension_rank)
 
 func can_level_up() -> bool:
 	return xp >= xp_to_next()
@@ -168,6 +169,25 @@ func level_up(aspect_id: String) -> bool:
 	xp -= cost
 	invest(aspect_id, 1)
 	return true
+
+# --- Ascension (v0.10, DESIGN.md 3.7) -------------------------------------------
+## The "forever ding": past the soft cap, banked XP can buy Ascension ranks
+## instead of levels. Ranks grant NO raw stat power — only breadth (the capped
+## loadout-slot drip in max_loadout_slots) and prestige. Infinite by design.
+func can_ascend() -> bool:
+	return past_soft_cap() and xp >= xp_to_next()
+
+func ascend() -> bool:
+	var cost := xp_to_next()
+	if not past_soft_cap() or xp < cost:
+		return false
+	xp -= cost
+	ascension_rank += 1
+	return true
+
+## How many bonus loadout slots Ascension has granted so far (capped).
+func ascension_slots() -> int:
+	return min(int(ascension_rank / 2), MAX_ASCENSION_SLOTS)
 
 # --- Respec (v0.7, DESIGN.md 3.6) ----------------------------------------------
 ## Consume a Respec Token: every invested level comes back as a free point to

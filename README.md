@@ -86,13 +86,18 @@ scenes/
   with the exact same server-side affinity/gear math. Free-for-all rounds,
   last one standing, **first to 3 rounds wins the match** — with a modest
   purse, because the arena is for glory, not farming.
+- Past **level 100** (the soft cap) the level-up fork grows a third road:
+  **ASCEND**. Ranks cost the same XP as levels but grant zero stats — just a
+  bonus loadout slot every 2 ranks (capped at +4, PvP-sane) and prestige: a
+  **✦N** by your class title and a golden halo on your avatar. The forever
+  ding, minus the power creep.
 - Clear the deepest room (a **boss** guards it) to open the **exit portal** —
   step in and the whole party extracts back to the lobby with a bonus reward,
   ready to roll the next dungeon.
 
 ## Status
 
-v0.9 — the PvP arena is in: both social loops from the design (co-op dungeon
-runs AND competitive arena) now run on the same server-authoritative combat
-spine. See the roadmap in [DESIGN.md](DESIGN.md#6-roadmap). Next up (v0.10):
-Ascension — post-soft-cap rank-ups and their capped loadout-slot drip.
+v0.10 — Ascension is live: the soft-cap endgame loop is complete (level power
+flattens, breadth and vanity are infinite — exactly as the design promised).
+See the roadmap in [DESIGN.md](DESIGN.md#6-roadmap). Next up (v0.11): the
+pillar-3 proof — a fifth Aspect (SHADOW) added purely as data.

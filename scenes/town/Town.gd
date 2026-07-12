@@ -62,6 +62,16 @@ func _ready() -> void:
 	wallet.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
 	col.add_child(wallet)
 
+	# Ascension status (v0.10): shows once it matters — approaching or past
+	# the soft cap — so early characters aren't teased with endgame math.
+	if build.ascension_rank > 0 or build.past_soft_cap():
+		var asc := Label.new()
+		asc.text = "Ascension ✦%d   ·   bonus loadout slots %d/%d   ·   ascend at level-up (in-run)" % [
+			build.ascension_rank, build.ascension_slots(), CharacterBuild.MAX_ASCENSION_SLOTS]
+		asc.add_theme_color_override("font_color", Color(1.0, 0.82, 0.35))
+		asc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		col.add_child(asc)
+
 	col.add_child(_divider())
 
 	# --- Actions. An unfinished respec gates the dungeon: a build with

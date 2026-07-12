@@ -177,6 +177,12 @@ can level forever, but raw level power flattens and other systems take over.
   (capped, for PvP sanity), cosmetics/prestige, account-wide unlocks, crafting
   materials, alternate ability visuals. This is the paragon-style "forever ding"
   without the paragon power-creep problem.
+  - *Implemented (v0.10):* past the soft cap, the in-run level-up fork gains a
+    third road — **ASCEND**. Ranks share the same XP price ladder as levels
+    (each purchase of either raises the next price), so the choice is pure
+    preference. Every 2 ranks grant a bonus loadout slot up to the cap; rank
+    shows as **✦N** on your title and a golden halo on your token. Respec
+    never touches Ascension.
 
 > The curve constants (`LEVEL_POWER_MAX`, `LEVEL_POWER_FALLOFF`, `LEVEL_SOFT_CAP`)
 > are all tunable. The firm commitment: **vertical power asymptotes; breadth and
@@ -249,9 +255,13 @@ See `scripts/autoload/NetworkManager.gd`.
   match rewards so the arena never out-farms the dungeon. The live test of
   the core bet: capped loadouts + soft-cap power keep fights about build and
   skill. ✅
-- **v0.10:** Ascension — post-soft-cap rank-ups that grant the capped extra
-  loadout slots and prestige (3.7); the `ascension_rank` field finally earns
-  its keep.
+- **v0.10:** Ascension — past the soft cap the level-up fork gains the ASCEND
+  road: ranks on the same XP price ladder as levels, granting the capped
+  loadout-slot drip and visible prestige (✦N title, golden halo), never stats.
+  The forever ding, delivered. ✅
+- **v0.11:** Content pass / pillar-3 proof — add a fifth Aspect (SHADOW) and
+  its hybrids *purely as data* to prove "combinations are emergent, not
+  hand-placed" holds in practice, plus a broader ability sheet.
 
 ## 7. Resolved Decisions
 

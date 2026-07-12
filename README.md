@@ -26,6 +26,8 @@ data/tiers.json                 # dungeon difficulty tiers (data-driven, v0.8)
 scripts/model/CharacterBuild.gd  # a character's aspect investments
 scripts/dungeon/
   DungeonGenerator.gd            # seed-driven procedural layouts (v0.5)
+scripts/ui/
+  Token.gd                       # shared drawn token (players/enemies/loot)
 scripts/autoload/
   ClassSystem.gd                 # resolves emergent class identity from a build
   GameState.gd                   # local session/character state
@@ -36,6 +38,7 @@ scenes/
   town/                          # Emberrest hub: shop, respec tent (v0.7)
   lobby/                         # host/join party, synced roster
   game/                          # the shared, server-authoritative dungeon run
+  arena/                         # PvP free-for-all arena (v0.9)
 ```
 
 ## Run it
@@ -78,13 +81,18 @@ scenes/
   the gold sink), and the **Respec Tent** lets a token refund *every* invested
   level to re-allocate through the same fork previews — walk a completely new
   road on the same character, gear and XP intact.
+- With 2+ players in the lobby, the host can **Start Arena** instead: a
+  symmetric PvP ring (orbit the pillar!) where your abilities target *players*
+  with the exact same server-side affinity/gear math. Free-for-all rounds,
+  last one standing, **first to 3 rounds wins the match** — with a modest
+  purse, because the arena is for glory, not farming.
 - Clear the deepest room (a **boss** guards it) to open the **exit portal** —
   step in and the whole party extracts back to the lobby with a bonus reward,
   ready to roll the next dungeon.
 
 ## Status
 
-v0.8 — dungeon tiers, a data-driven bestiary (Spitters! Hexers!), and the
-death-penalty baseline are in. See the roadmap in
-[DESIGN.md](DESIGN.md#6-roadmap). Next up (v0.9): the PvP arena prototype —
-the second social loop.
+v0.9 — the PvP arena is in: both social loops from the design (co-op dungeon
+runs AND competitive arena) now run on the same server-authoritative combat
+spine. See the roadmap in [DESIGN.md](DESIGN.md#6-roadmap). Next up (v0.10):
+Ascension — post-soft-cap rank-ups and their capped loadout-slot drip.

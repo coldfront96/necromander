@@ -18,6 +18,7 @@ signal tier_changed(tier_index: int)
 const DEFAULT_PORT := 8910
 const MAX_PLAYERS := 4
 const GAME_SCENE := "res://scenes/game/DungeonRoom.tscn"
+const ARENA_SCENE := "res://scenes/arena/Arena.tscn"
 
 ## peer_id -> { name, race, class_title, aspect_set, ready }
 var players: Dictionary = {}
@@ -187,6 +188,18 @@ func _load_game(seed_value: int, tier_index: int) -> void:
 	run_tier = tier_index
 	game_started.emit()
 	get_tree().change_scene_to_file(GAME_SCENE)
+
+## Host launches the PvP arena (v0.9) — the second social loop. Needs 2+
+## players; the same lockstep scene-change pattern as dungeon runs.
+func start_arena() -> void:
+	if is_server() and players.size() >= 2:
+		_load_arena.rpc(randi())
+
+@rpc("authority", "call_local", "reliable")
+func _load_arena(seed_value: int) -> void:
+	run_seed = seed_value
+	game_started.emit()
+	get_tree().change_scene_to_file(ARENA_SCENE)
 
 @rpc("any_peer", "call_remote", "reliable")
 func _request_ready(peer_id: int, value: bool) -> void:

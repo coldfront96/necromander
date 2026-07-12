@@ -242,9 +242,16 @@ See `scripts/autoload/NetworkManager.gd`.
   the lobby; foes, rewards and loot all scale) and a data-driven bestiary with
   ranged Spitters and heavy-bolt Hexers mixing in as rooms get deeper; death
   penalty resolved (section 7): 15% of the run's gold, nothing else. ✅
-- **v0.9:** PvP arena prototype — the second social loop (section 4): a small
-  arena scene over the same server-authoritative combat, testing whether the
-  capped loadout + soft-cap model really keeps fights about build and skill.
+- **v0.9:** PvP arena prototype — the second social loop (section 4): a
+  symmetric ring arena over the same server-authoritative combat spine,
+  free-for-all rounds (last one standing, first to 3 takes the match),
+  abilities retargeted at players with identical affinity/gear math, modest
+  match rewards so the arena never out-farms the dungeon. The live test of
+  the core bet: capped loadouts + soft-cap power keep fights about build and
+  skill. ✅
+- **v0.10:** Ascension — post-soft-cap rank-ups that grant the capped extra
+  loadout slots and prestige (3.7); the `ascension_rank` field finally earns
+  its keep.
 
 ## 7. Resolved Decisions
 

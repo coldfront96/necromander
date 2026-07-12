@@ -13,6 +13,7 @@ var join_button: Button
 var leave_button: Button
 var ready_button: Button
 var start_button: Button
+var arena_button: Button
 var tier_option: OptionButton
 var tier_label: Label
 
@@ -112,6 +113,11 @@ func _ready() -> void:
 	start_button.add_theme_color_override("font_color", Color(0.42, 1.0, 0.81))
 	col.add_child(start_button)
 
+	# The second social loop (v0.9): free-for-all arena, needs 2+ players.
+	arena_button = _btn("Start Arena — PvP (host)", func(): NetworkManager.start_arena())
+	arena_button.add_theme_color_override("font_color", Color(1.0, 0.55, 0.42))
+	col.add_child(arena_button)
+
 	var back := _btn("Back to Town", func(): _on_leave(); get_tree().change_scene_to_file(TOWN))
 	col.add_child(back)
 
@@ -186,6 +192,10 @@ func _update_buttons() -> void:
 	tier_option.disabled = not active
 	start_button.visible = NetworkManager.is_server()
 	start_button.disabled = not active
+	# Arena is PvP: it needs someone to fight.
+	arena_button.visible = NetworkManager.is_server()
+	arena_button.disabled = not active or NetworkManager.players.size() < 2
+	arena_button.tooltip_text = "" if NetworkManager.players.size() >= 2 else "Need at least 2 players."
 
 func _refresh_tier() -> void:
 	var t := DungeonData.tier(NetworkManager.run_tier)

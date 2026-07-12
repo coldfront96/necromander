@@ -47,6 +47,14 @@ func receive_gold(amount: int) -> void:
 	save()
 	gold_gained.emit(amount)
 
+## The death toll (v0.8): the authoritative server says we lost gold. Clamped
+## at zero — death can sting, never bankrupt.
+func lose_gold(amount: int) -> void:
+	if player_build == null or amount <= 0:
+		return
+	player_build.gold = max(0, player_build.gold - amount)
+	save()
+
 func has_character() -> bool:
 	return player_build != null
 

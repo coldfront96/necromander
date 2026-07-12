@@ -238,9 +238,13 @@ See `scripts/autoload/NetworkManager.gd`.
   Tokens (3.6) and a gamble-cache gold sink; the full respec flow works
   (token → refund all levels → re-invest through the fork previews). The
   target game loop (section 5) is now complete end to end. ✅
-- **v0.8:** Dungeon tiers & enemy variety — pick your difficulty in town,
-  new husk archetypes (ranged / caster), and a first pass at the in-dungeon
-  death penalty question (section 8).
+- **v0.8:** Dungeon tiers & enemy variety — data-driven tiers (host picks in
+  the lobby; foes, rewards and loot all scale) and a data-driven bestiary with
+  ranged Spitters and heavy-bolt Hexers mixing in as rooms get deeper; death
+  penalty resolved (section 7): 15% of the run's gold, nothing else. ✅
+- **v0.9:** PvP arena prototype — the second social loop (section 4): a small
+  arena scene over the same server-authoritative combat, testing whether the
+  capped loadout + soft-cap model really keeps fights about build and skill.
 
 ## 7. Resolved Decisions
 
@@ -255,14 +259,18 @@ See `scripts/autoload/NetworkManager.gd`.
   automatically (the discovery); identity/title is the player's choice and
   defaults to the emergent class, so it's zero-friction unless you want control.
 - **PvP?** → *Yes — both co-op and PvP* (section 4).
+- **Death/penalty model?** → *Forgiving with teeth* (v0.8): dying respawns you
+  at the dungeon entrance and costs **15% of the gold earned that run** —
+  banked gold, XP, and items are never lost. Mobile-friendly baseline;
+  hardcore/extraction variants stay on the table as future opt-in modes.
 
 ## 8. Still Open (to revisit)
 
 - Exact number of base active-slot count and the per-Ascension slot drip.
 - PvP format(s): arena/duels, ranked seasons, objective modes?
 - Real-money monetization scope beyond Respec Tokens (cosmetics only? battle pass?).
-- Death/penalty model in dungeons (roguelike extraction risk vs. forgiving).
 - Season/reset cadence for Ascension horizontal rewards.
+- Opt-in hardcore/extraction death modes on top of the v0.8 baseline.
 
 ---
 

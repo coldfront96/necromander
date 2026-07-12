@@ -1,0 +1,28 @@
+{
+  "tiers": [
+    {
+      "name": "Ashen Halls",
+      "suggested_level": 1,
+      "stat_mult": 1.0, "reward_mult": 1.0, "ilvl_bonus": 0,
+      "blurb": "The broken upper halls. A proving ground."
+    },
+    {
+      "name": "Sunken Crypts",
+      "suggested_level": 8,
+      "stat_mult": 1.6, "reward_mult": 1.5, "ilvl_bonus": 2,
+      "blurb": "Waterlogged vaults where the husks learned to keep their distance."
+    },
+    {
+      "name": "The Marrow Deep",
+      "suggested_level": 16,
+      "stat_mult": 2.5, "reward_mult": 2.2, "ilvl_bonus": 4,
+      "blurb": "The bones of the necropolis. Hexers rule the dark here."
+    },
+    {
+      "name": "Heart of the Necropolis",
+      "suggested_level": 26,
+      "stat_mult": 4.0, "reward_mult": 3.2, "ilvl_bonus": 6,
+      "blurb": "Where the Necromander's will is law. Bring friends. Bring a will."
+    }
+  ]
+}

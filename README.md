@@ -21,6 +21,8 @@ open up. The combination space is near-unlimited.
 ```
 data/combinations.json          # the class/aspect registry (data-driven)
 data/shop.json                  # the town shop catalog (data-driven)
+data/enemies.json               # the husk bestiary (data-driven, v0.8)
+data/tiers.json                 # dungeon difficulty tiers (data-driven, v0.8)
 scripts/model/CharacterBuild.gd  # a character's aspect investments
 scripts/dungeon/
   DungeonGenerator.gd            # seed-driven procedural layouts (v0.5)
@@ -47,16 +49,20 @@ scenes/
 - Enable Godot's *Debug → Run Multiple Instances* (set 2 instances).
 - In window A: create a character → **Host** a lobby.
 - In window B: create a character → **Join** `127.0.0.1`.
-- Watch the roster sync. Then in the host window press **Start Run (host)** —
-  the host rolls a seed and every peer generates the **same procedural dungeon**
-  (rooms + corridors on a room-graph; only the seed crosses the wire). Move with
-  the on-screen stick (or arrow keys); walls are real, the camera follows you,
-  and the **minimap** (top-right) shows the layout and the exit room.
+- Watch the roster sync. As host, pick a **dungeon tier** — foes, rewards and
+  loot all scale, and each tier suggests a level (suggestion, not a gate: bring
+  a strong party and punch up). Then press **Start Run (host)** — the host
+  rolls a seed and every peer generates the **same procedural dungeon** (rooms
+  + corridors on a room-graph; only the seed crosses the wire). Move with the
+  on-screen stick (or arrow keys); walls are real, the camera follows you, and
+  the **minimap** (top-right) shows the layout and the exit room.
 - Tap an ability on the **hotbar** (built from your loadout) to fight the
   **husks** — the server resolves damage/healing, applies your identity
-  affinity bonus, and broadcasts HP to everyone. Husks chase and hit back, and
-  they get **meaner the deeper the room** — healing matters; downed players
-  respawn back at the entrance.
+  affinity bonus, and broadcasts HP to everyone. The bestiary is data-driven:
+  melee **Husks** charge you, green **Spitters** shoot from a standoff and
+  kite, purple **Hexers** land slow, heavy bolts — and the mix gets nastier
+  the deeper the room. Dying respawns you at the entrance and costs **15% of
+  the gold you earned this run** (banked gold, XP and items are safe).
 - Husks **drop loot** (rarity-colored diamonds) that rolls **higher item levels
   in deeper rooms** — walk over a drop to pick it up. Open **Inventory** from
   the main menu to equip gear; its stats scale your damage/healing/HP
@@ -78,7 +84,7 @@ scenes/
 
 ## Status
 
-v0.7 — the target game loop is complete end to end: town → party up →
-procedural dungeon → mid-run level-up forks → extract with loot, XP & gold →
-shop/respec → dive again. See the roadmap in [DESIGN.md](DESIGN.md#6-roadmap).
-Next up (v0.8): dungeon tiers, enemy variety, and the death-penalty question.
+v0.8 — dungeon tiers, a data-driven bestiary (Spitters! Hexers!), and the
+death-penalty baseline are in. See the roadmap in
+[DESIGN.md](DESIGN.md#6-roadmap). Next up (v0.9): the PvP arena prototype —
+the second social loop.

@@ -1,0 +1,28 @@
+{
+  "archetypes": {
+    "husk": {
+      "name": "Husk",
+      "hp": 70, "dmg": 6, "speed": 95,
+      "attack_range": 90, "keep_range": 0, "interval": 1.5,
+      "radius": 24, "color": "d94d52", "ranged": false
+    },
+    "spitter": {
+      "name": "Spitter",
+      "hp": 48, "dmg": 8, "speed": 85,
+      "attack_range": 320, "keep_range": 240, "interval": 2.0,
+      "radius": 20, "color": "7ed957", "ranged": true
+    },
+    "hexer": {
+      "name": "Hexer",
+      "hp": 40, "dmg": 14, "speed": 70,
+      "attack_range": 300, "keep_range": 220, "interval": 2.8,
+      "radius": 21, "color": "b36bff", "ranged": true
+    },
+    "boss": {
+      "name": "Dread Husk",
+      "hp": 224, "dmg": 9.6, "speed": 80,
+      "attack_range": 110, "keep_range": 0, "interval": 1.5,
+      "radius": 36, "color": "f23373", "ranged": false
+    }
+  }
+}

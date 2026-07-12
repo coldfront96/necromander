@@ -13,6 +13,7 @@ signal server_started(port: int)
 signal player_joined(peer_id: int, info: Dictionary)
 signal player_left(peer_id: int)
 signal game_started()
+signal tier_changed(tier_index: int)
 
 const DEFAULT_PORT := 8910
 const MAX_PLAYERS := 4
@@ -26,6 +27,10 @@ var players: Dictionary = {}
 ## the identical layout locally via DungeonGenerator (v0.5), so the geometry
 ## itself never has to be synced.
 var run_seed: int = 0
+
+## Dungeon tier for the next run (v0.8, index into DungeonData.tiers). Host's
+## choice, synced to the party in the lobby and locked in at start_game().
+var run_tier: int = 0
 
 func _ready() -> void:
 	multiplayer.peer_connected.connect(_on_peer_connected)
@@ -69,6 +74,7 @@ func host_game(port: int = DEFAULT_PORT) -> bool:
 	multiplayer.multiplayer_peer = peer
 	players.clear()
 	players[1] = _local_info()
+	run_tier = 0
 	server_started.emit(port)
 	lobby_updated.emit(players)
 	return true
@@ -137,6 +143,8 @@ func _register_player(peer_id: int, info: Dictionary) -> void:
 		players[peer_id] = info
 		player_joined.emit(peer_id, info)
 		_sync_roster.rpc(players)
+		# Late joiners need the host's current tier choice too.
+		_sync_tier.rpc_id(peer_id, run_tier)
 
 ## Authority pushes the canonical roster to all clients.
 @rpc("authority", "call_local", "reliable")
@@ -155,15 +163,28 @@ func set_ready(value: bool) -> void:
 		_request_ready.rpc_id(1, local_id(), value)
 
 # ---------------------------------------------------------------- start game
-## Host rolls the dungeon seed and launches the party; every peer loads the
-## scene in lockstep and generates the same layout from the shared seed.
-func start_game() -> void:
+## Host picks the dungeon tier (v0.8); every peer mirrors the choice so the
+## lobby can show what the party is about to walk into.
+func set_tier(tier_index: int) -> void:
 	if is_server():
-		_load_game.rpc(randi())
+		_sync_tier.rpc(tier_index)
 
 @rpc("authority", "call_local", "reliable")
-func _load_game(seed_value: int) -> void:
+func _sync_tier(tier_index: int) -> void:
+	run_tier = tier_index
+	tier_changed.emit(tier_index)
+
+## Host rolls the dungeon seed and launches the party; every peer loads the
+## scene in lockstep and generates the same layout from the shared seed. The
+## tier rides along so a client that missed a lobby sync can't desync.
+func start_game() -> void:
+	if is_server():
+		_load_game.rpc(randi(), run_tier)
+
+@rpc("authority", "call_local", "reliable")
+func _load_game(seed_value: int, tier_index: int) -> void:
 	run_seed = seed_value
+	run_tier = tier_index
 	game_started.emit()
 	get_tree().change_scene_to_file(GAME_SCENE)
 

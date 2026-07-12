@@ -13,6 +13,8 @@ var join_button: Button
 var leave_button: Button
 var ready_button: Button
 var start_button: Button
+var tier_option: OptionButton
+var tier_label: Label
 
 func _ready() -> void:
 	var bg := ColorRect.new()
@@ -81,6 +83,19 @@ func _ready() -> void:
 	div.custom_minimum_size = Vector2(0, 2)
 	col.add_child(div)
 
+	# --- Dungeon tier (v0.8): the host picks, everyone sees the stakes.
+	tier_option = OptionButton.new()
+	for i in DungeonData.tier_count():
+		var t := DungeonData.tier(i)
+		tier_option.add_item("%s  (suggested Lv %d+)" % [t.get("name", "?"), int(t.get("suggested_level", 1))])
+	tier_option.item_selected.connect(func(i): NetworkManager.set_tier(i))
+	col.add_child(tier_option)
+
+	tier_label = Label.new()
+	tier_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	tier_label.add_theme_color_override("font_color", Color(1.0, 0.7, 0.35))
+	col.add_child(tier_label)
+
 	var party_label := Label.new()
 	party_label.text = "Party"
 	party_label.add_theme_font_size_override("font_size", 20)
@@ -105,8 +120,10 @@ func _ready() -> void:
 	NetworkManager.server_started.connect(func(port): _set_status("Hosting on port %d. Share your IP to let friends join." % port))
 	NetworkManager.connection_succeeded.connect(func(): _set_status("Connected to host."))
 	NetworkManager.connection_failed.connect(func(reason): _set_status("⚠ " + reason))
+	NetworkManager.tier_changed.connect(func(_i): _refresh_tier())
 
 	_on_lobby_updated(NetworkManager.players)
+	_refresh_tier()
 	_update_buttons()
 
 # ---------------------------------------------------------------- actions
@@ -164,9 +181,19 @@ func _update_buttons() -> void:
 	join_button.disabled = active
 	leave_button.disabled = not active
 	ready_button.disabled = not active
-	# Only the host can start the run, and only once connected.
+	# Only the host picks the tier and starts the run, and only once connected.
+	tier_option.visible = NetworkManager.is_server()
+	tier_option.disabled = not active
 	start_button.visible = NetworkManager.is_server()
 	start_button.disabled = not active
+
+func _refresh_tier() -> void:
+	var t := DungeonData.tier(NetworkManager.run_tier)
+	tier_label.text = "Dungeon: %s — foes ×%.1f, rewards ×%.1f (suggested Lv %d+)\n%s" % [
+		t.get("name", "?"), float(t.get("stat_mult", 1.0)), float(t.get("reward_mult", 1.0)),
+		int(t.get("suggested_level", 1)), t.get("blurb", "")]
+	if tier_option.selected != NetworkManager.run_tier:
+		tier_option.select(NetworkManager.run_tier)
 
 func _set_status(text: String) -> void:
 	status_label.text = text

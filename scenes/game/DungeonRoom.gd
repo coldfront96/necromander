@@ -23,27 +23,24 @@ const SPEED := 240.0
 const BROADCAST_HZ := 20.0
 const AVATAR_RADIUS := 22.0
 
-# --- Combat
+# --- Combat. Enemy archetypes are data-driven (data/enemies.json via
+# DungeonData, v0.8); only the depth/tier scaling curves live here.
 const COMBAT_HZ := 10.0
-const ENEMY_RADIUS := 24.0
-const BOSS_RADIUS := 36.0
-const ENEMY_HP := 70.0
-const ENEMY_ATTACK_INTERVAL := 1.5
-const ENEMY_ATTACK_RANGE := 90.0
-const ENEMY_ATTACK_DAMAGE := 6.0
-const ENEMY_AGGRO_RANGE := 300.0
-const ENEMY_SPEED := 95.0
+const ENEMY_AGGRO_RANGE := 300.0   # floor; ranged archetypes extend it
 const ENEMY_DEPTH_HP := 0.35       # +35% HP per depth beyond the first room
 const ENEMY_DEPTH_DMG := 0.20      # +20% damage per depth beyond the first
-const BOSS_HP_MULT := 3.2
-const BOSS_DMG_MULT := 1.6
 const PLAYER_BASE_HP := 80.0
 const PLAYER_RESPAWN := 3.0
 
-# --- Loot (v0.4) — item level now scales with room depth (v0.5)
+# --- Death penalty (v0.8): forgiving with teeth. Dying costs a slice of the
+# gold earned THIS run (never banked gold, never XP, never items) plus the
+# walk back from the entrance. See DESIGN.md 7.
+const DEATH_GOLD_PENALTY := 0.15
+
+# --- Loot (v0.4) — item level scales with room depth (v0.5) + tier (v0.8)
 const DROP_CHANCE := 0.7
 const PICKUP_RADIUS := 46.0
-const LOOT_MAX_ILVL := 12
+const LOOT_MAX_ILVL := 18
 
 # --- Exit portal (v0.5)
 const PORTAL_RADIUS := 42.0
@@ -68,8 +65,6 @@ const PALETTE := [
 	Color(1.0, 0.55, 0.42), Color(1.0, 0.85, 0.4),
 	Color(0.5, 0.7, 1.0), Color(1.0, 0.5, 0.7),
 ]
-const ENEMY_COLOR := Color(0.85, 0.30, 0.32)
-const BOSS_COLOR := Color(0.95, 0.20, 0.45)
 const FLOOR_COLOR := Color(0.12, 0.10, 0.16)
 const CORRIDOR_COLOR := Color(0.10, 0.085, 0.135)
 const SPAWN_TINT := Color(0.10, 0.14, 0.14)
@@ -77,6 +72,7 @@ const EXIT_TINT := Color(0.15, 0.10, 0.19)
 
 # --- The shared board (identical on every peer, derived from the run seed)
 var layout: Dictionary
+var tier: Dictionary               # this run's tier entry (v0.8)
 
 # --- Server-authoritative state (meaningful only on the host)
 var positions: Dictionary = {}     # peer_id -> Vector2
@@ -85,9 +81,10 @@ var player_hp: Dictionary = {}     # peer_id -> float
 var player_max: Dictionary = {}    # peer_id -> float
 var player_respawn: Dictionary = {} # peer_id -> float (countdown; >0 = dead)
 var cooldowns: Dictionary = {}     # peer_id -> { ability_name: seconds_left }
-var enemies: Dictionary = {}       # eid -> { pos, hp, max, alive, atk, dmg, depth, room, boss }
+var enemies: Dictionary = {}       # eid -> { pos, hp, max, alive, atk, kind, ... } (see _spawn_enemies)
 var ground_loot: Dictionary = {}   # loot_id -> { item, pos }
 var portal_active: bool = false    # true once the exit room is cleared
+var run_gold: Dictionary = {}      # peer_id -> gold earned this run (death-toll base, v0.8)
 var _next_loot_id: int = 0
 
 # --- Client render state (all peers)
@@ -125,8 +122,10 @@ func _ready() -> void:
 		get_tree().change_scene_to_file(MAIN_MENU)
 		return
 
-	# Every peer derives the same board from the host-rolled seed (v0.5).
+	# Every peer derives the same board from the host-rolled seed (v0.5),
+	# scaled by the host-picked tier (v0.8).
 	layout = DungeonGenerator.generate(NetworkManager.run_seed)
+	tier = DungeonData.tier(NetworkManager.run_tier)
 
 	var view := get_viewport_rect().size
 	_build_world()
@@ -194,7 +193,7 @@ func _build_ui(view: Vector2) -> void:
 	add_child(ui)
 
 	var banner := Label.new()
-	banner.text = "Dungeon — clear the deepest room to open the portal"
+	banner.text = "%s — clear the deepest room to open the portal" % tier.get("name", "Dungeon")
 	banner.position = Vector2(20, 14)
 	banner.add_theme_color_override("font_color", Color(0.8, 0.8, 0.9))
 	ui.add_child(banner)
@@ -401,24 +400,47 @@ func _spawn_player(id: int, index: int) -> void:
 	player_respawn[id] = 0.0
 	cooldowns[id] = {}
 
-## Enemies come from the generated layout: deeper rooms hold more and meaner
-## husks, and the exit room adds a boss guarding the portal.
+## Enemies come from the generated layout: deeper rooms hold more, meaner, and
+## more *varied* husks (archetypes are data-driven, v0.8), the exit room adds a
+## boss, and the whole roster scales with the chosen tier.
 func _spawn_enemies() -> void:
+	var stat_mult := float(tier.get("stat_mult", 1.0))
 	var eid := 0
 	for spawn in layout["enemies"]:
 		var depth: int = spawn["depth"]
 		var boss: bool = spawn["boss"]
-		var hp := ENEMY_HP * (1.0 + ENEMY_DEPTH_HP * float(depth - 1))
-		var dmg := ENEMY_ATTACK_DAMAGE * (1.0 + ENEMY_DEPTH_DMG * float(depth - 1))
-		if boss:
-			hp *= BOSS_HP_MULT
-			dmg *= BOSS_DMG_MULT
+		var kind := "boss" if boss else _roll_archetype(depth)
+		var def := DungeonData.archetype(kind)
+		var scale := (1.0 + ENEMY_DEPTH_HP * float(depth - 1)) * stat_mult
+		var hp := float(def.get("hp", 70.0)) * scale
+		var dmg := float(def.get("dmg", 6.0)) * (1.0 + ENEMY_DEPTH_DMG * float(depth - 1)) * stat_mult
+		var interval := float(def.get("interval", 1.5))
 		enemies[eid] = {
 			"pos": spawn["pos"], "hp": hp, "max": hp, "alive": true,
-			"atk": ENEMY_ATTACK_INTERVAL, "dmg": dmg,
+			# Stagger first attacks so a room doesn't volley in lockstep.
+			"atk": interval * randf_range(0.5, 1.0), "dmg": dmg,
+			"kind": kind, "spd": float(def.get("speed", 95.0)),
+			"atk_range": float(def.get("attack_range", 90.0)),
+			"keep_range": float(def.get("keep_range", 0.0)),
+			"interval": interval, "ranged": bool(def.get("ranged", false)),
+			"radius": float(def.get("radius", 24.0)),
 			"depth": depth, "room": spawn["room"], "boss": boss,
 		}
 		eid += 1
+
+## Which husk shows up where: the first rooms are pure melee (teach the basics);
+## deeper rooms mix in Spitters (standoff shooters) and Hexers (slow heavy bolts).
+func _roll_archetype(depth: int) -> String:
+	if depth <= 1:
+		return "husk"
+	var r := randf()
+	var p_hexer := minf(0.04 * float(depth), 0.25)
+	var p_spitter := minf(0.10 + 0.06 * float(depth), 0.35)
+	if r < p_hexer:
+		return "hexer"
+	if r < p_hexer + p_spitter:
+		return "spitter"
+	return "husk"
 
 func _spawn_point(index: int) -> Vector2:
 	var angle := float(index) * (TAU / float(NetworkManager.MAX_PLAYERS))
@@ -429,7 +451,7 @@ func _on_player_joined(peer_id: int, _info: Dictionary) -> void:
 		_spawn_player(peer_id, positions.size())
 
 func _on_player_left(peer_id: int) -> void:
-	for d in [positions, inputs, player_hp, player_max, player_respawn, cooldowns]:
+	for d in [positions, inputs, player_hp, player_max, player_respawn, cooldowns, run_gold]:
 		d.erase(peer_id)
 
 ## A peer's build changed mid-run (level-up or gear). Recompute max HP; when it
@@ -515,21 +537,37 @@ func _server_step(delta: float) -> void:
 		if intent != Vector2.ZERO:
 			positions[id] = _slide_move(positions[id],
 				intent.limit_length(1.0) * SPEED * delta, AVATAR_RADIUS)
-	# enemies: dead stay dead (you *clear* a dungeon); the living chase & bite
+	# enemies: dead stay dead (you *clear* a dungeon); the living behave by
+	# archetype (v0.8) — melee closes in, ranged holds a standoff and kites.
 	for eid in enemies.keys():
 		var e: Dictionary = enemies[eid]
 		if not e["alive"]:
 			continue
-		var radius: float = BOSS_RADIUS if e["boss"] else ENEMY_RADIUS
-		var prey := _nearest_player(e["pos"], ENEMY_AGGRO_RANGE)
-		if prey != -1:
-			var to: Vector2 = positions[prey] - e["pos"]
-			if to.length() > ENEMY_ATTACK_RANGE * 0.6:
-				e["pos"] = _slide_move(e["pos"], to.normalized() * ENEMY_SPEED * delta, radius)
+		var aggro: float = maxf(ENEMY_AGGRO_RANGE, e["atk_range"] + 60.0)
+		var prey := _nearest_player(e["pos"], aggro)
+		if prey == -1:
+			continue
+		var to: Vector2 = positions[prey] - e["pos"]
+		var dist := to.length()
+		var step := Vector2.ZERO
+		if e["ranged"]:
+			if dist > e["keep_range"]:
+				step = to.normalized()           # close to the standoff band
+			elif dist < e["keep_range"] * 0.55:
+				step = -to.normalized()          # too close — back off
+		elif dist > e["atk_range"] * 0.6:
+			step = to.normalized()
+		if step != Vector2.ZERO:
+			e["pos"] = _slide_move(e["pos"], step * e["spd"] * delta, e["radius"])
 		e["atk"] -= delta
-		if e["atk"] <= 0.0:
-			e["atk"] = ENEMY_ATTACK_INTERVAL
-			_enemy_attack(e["pos"], e["dmg"])
+		if e["atk"] <= 0.0 and dist <= e["atk_range"]:
+			e["atk"] = e["interval"]
+			if e["ranged"]:
+				# Single-target bolt at the prey, drawn for everyone.
+				_damage_player(prey, e["dmg"])
+				_fx_line.rpc(e["pos"], positions[prey], true)
+			else:
+				_enemy_attack(e["pos"], e["dmg"], e["atk_range"])
 	# portal: any living player standing in the open portal extracts the party
 	if portal_active:
 		for id in positions.keys():
@@ -578,11 +616,12 @@ func _award_loot(peer_id: int, item: Dictionary) -> void:
 	else:
 		_grant_loot.rpc_id(peer_id, item)
 
-func _enemy_attack(from: Vector2, dmg: float) -> void:
+## Melee cleave: hits every living player inside the archetype's reach.
+func _enemy_attack(from: Vector2, dmg: float, reach: float) -> void:
 	for id in positions.keys():
 		if _is_dead(id):
 			continue
-		if positions[id].distance_to(from) <= ENEMY_ATTACK_RANGE:
+		if positions[id].distance_to(from) <= reach:
 			_damage_player(id, dmg)
 
 # ================================================================ casting (server-authoritative)
@@ -683,12 +722,13 @@ func _damage_enemy(eid: int, dmg: float) -> void:
 		_maybe_drop(e["pos"], e["depth"], e["boss"])
 		_check_portal(e["room"])
 
-## A kill reward (XP or gold), scaled by room depth; bosses pay a fat premium.
+## A kill reward (XP or gold), scaled by room depth and the run tier (v0.8);
+## bosses pay a fat premium.
 func _kill_reward(base: float, boss_mult: float, depth: int, boss: bool) -> int:
 	var amount := base * (1.0 + REWARD_DEPTH_BONUS * float(depth - 1))
 	if boss:
 		amount *= boss_mult
-	return int(round(amount))
+	return int(round(amount * float(tier.get("reward_mult", 1.0))))
 
 ## Party-shared XP (server): every member banks the full amount — co-op should
 ## never devolve into kill-stealing. Delivery mirrors the loot-grant path.
@@ -702,10 +742,12 @@ func _award_xp_party(amount: int) -> void:
 			_grant_xp.rpc_id(id, amount)
 
 ## Party-shared gold (server, v0.7) — the shop currency, same delivery path.
+## Also tallied per player as this run's earnings: the death toll's base (v0.8).
 func _award_gold_party(amount: int) -> void:
 	if amount <= 0:
 		return
 	for id in NetworkManager.players.keys():
+		run_gold[id] = int(run_gold.get(id, 0)) + amount
 		if id == 1:
 			_apply_gold(amount)
 		else:
@@ -721,12 +763,13 @@ func _check_portal(room_idx: int) -> void:
 			return
 	portal_active = true
 
-## Depth is the loot dial (v0.5): deeper rooms roll higher item levels, and
-## bosses always drop.
+## Depth is the loot dial (v0.5), tier shifts the whole band upward (v0.8):
+## deeper rooms and harder tiers roll higher item levels; bosses always drop.
 func _maybe_drop(pos: Vector2, depth: int, boss: bool) -> void:
 	if not boss and randf() > DROP_CHANCE:
 		return
-	var ilvl := clampi(randi_range(1 + depth, 2 + depth * 2), 1, LOOT_MAX_ILVL)
+	var bonus := int(tier.get("ilvl_bonus", 0))
+	var ilvl := clampi(randi_range(1 + depth, 2 + depth * 2) + bonus, 1, LOOT_MAX_ILVL)
 	var item := LootSystem.roll_drop(ilvl)
 	ground_loot[_next_loot_id] = {"item": item, "pos": pos}
 	_next_loot_id += 1
@@ -737,11 +780,12 @@ func _finish_run() -> void:
 	if _run_over:
 		return
 	var exit_depth: int = layout["rooms"][layout["exit"]]["depth"]
-	_award_xp_party(XP_EXTRACT_BASE + XP_EXTRACT_PER_DEPTH * exit_depth)
-	_award_gold_party(GOLD_EXTRACT_BASE + GOLD_EXTRACT_PER_DEPTH * exit_depth)
+	var rmult := float(tier.get("reward_mult", 1.0))
+	_award_xp_party(int(round((XP_EXTRACT_BASE + XP_EXTRACT_PER_DEPTH * exit_depth) * rmult)))
+	_award_gold_party(int(round((GOLD_EXTRACT_BASE + GOLD_EXTRACT_PER_DEPTH * exit_depth) * rmult)))
 	for id in NetworkManager.players.keys():
-		var bonus := LootSystem.roll_drop(clampi(2 + exit_depth * 2, 1, LOOT_MAX_ILVL))
-		_award_loot(id, bonus)
+		var ilvl := clampi(2 + exit_depth * 2 + int(tier.get("ilvl_bonus", 0)), 1, LOOT_MAX_ILVL)
+		_award_loot(id, LootSystem.roll_drop(ilvl))
 	_complete_run.rpc()
 
 func _damage_player(peer_id: int, dmg: float) -> void:
@@ -751,6 +795,19 @@ func _damage_player(peer_id: int, dmg: float) -> void:
 	_fx_number.rpc(positions[peer_id], dmg, false)
 	if player_hp[peer_id] <= 0.0 and player_respawn.get(peer_id, 0.0) <= 0.0:
 		player_respawn[peer_id] = PLAYER_RESPAWN
+		_apply_death_toll(peer_id)
+
+## Death toll (v0.8): a slice of the gold earned THIS run — never banked gold,
+## never XP, never items. Forgiving with teeth; see DESIGN.md 7.
+func _apply_death_toll(peer_id: int) -> void:
+	var toll := int(floor(float(run_gold.get(peer_id, 0)) * DEATH_GOLD_PENALTY))
+	if toll <= 0:
+		return
+	run_gold[peer_id] = int(run_gold.get(peer_id, 0)) - toll
+	if peer_id == 1:
+		_apply_gold_loss(toll)
+	else:
+		_lose_gold.rpc_id(peer_id, toll)
 
 func _heal_player(peer_id: int, amount: float) -> void:
 	if not player_hp.has(peer_id) or _is_dead(peer_id):
@@ -805,6 +862,17 @@ func _grant_gold(amount: int) -> void:
 func _apply_gold(amount: int) -> void:
 	GameState.receive_gold(amount)
 
+## Server -> owning client: "death has a price." Deduct and persist (v0.8).
+@rpc("authority", "call_remote", "reliable")
+func _lose_gold(amount: int) -> void:
+	_apply_gold_loss(amount)
+
+func _apply_gold_loss(amount: int) -> void:
+	GameState.lose_gold(amount)
+	if loot_log:
+		loot_log.add_theme_color_override("font_color", Color(1.0, 0.45, 0.4))
+		loot_log.text = "Death toll: -%d gold" % amount
+
 func _apply_grant(item: Dictionary) -> void:
 	GameState.receive_loot(item)
 	if loot_log:
@@ -838,7 +906,7 @@ func _pack_enemies() -> Dictionary:
 	for eid in enemies.keys():
 		if enemies[eid]["alive"]:
 			out[eid] = {"pos": enemies[eid]["pos"], "hp": enemies[eid]["hp"],
-				"max": enemies[eid]["max"], "boss": enemies[eid]["boss"]}
+				"max": enemies[eid]["max"], "kind": enemies[eid]["kind"]}
 	return out
 
 func _pack_loot() -> Dictionary:
@@ -883,7 +951,7 @@ func _render(delta: float) -> void:
 	for eid in c_enemies.keys():
 		var et: Token = enemy_tokens.get(eid)
 		if et == null:
-			et = _make_enemy_token(c_enemies[eid].get("boss", false))
+			et = _make_enemy_token(c_enemies[eid].get("kind", "husk"))
 			enemy_tokens[eid] = et
 			world.add_child(et)
 		et.position = c_enemies[eid]["pos"]
@@ -917,12 +985,14 @@ func _make_player_token(peer_id: int) -> Token:
 	tok.set_label("%s\n%s" % [info.get("name", "Player %d" % peer_id), info.get("class_title", "")])
 	return tok
 
-func _make_enemy_token(boss: bool) -> Token:
+## Enemy visuals come from the archetype's data entry (v0.8).
+func _make_enemy_token(kind: String) -> Token:
+	var def := DungeonData.archetype(kind)
 	var tok := Token.new()
-	tok.radius = BOSS_RADIUS if boss else ENEMY_RADIUS
-	tok.color = BOSS_COLOR if boss else ENEMY_COLOR
+	tok.radius = float(def.get("radius", 24.0))
+	tok.color = DungeonData.archetype_color(kind)
 	tok.is_square = true
-	tok.set_label("Dread Husk" if boss else "Husk")
+	tok.set_label(def.get("name", "Husk"))
 	return tok
 
 func _tick_local_cd(delta: float) -> void:

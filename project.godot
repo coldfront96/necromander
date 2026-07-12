@@ -16,6 +16,7 @@ config/icon="res://icon.svg"
 
 ClassSystem="*res://scripts/autoload/ClassSystem.gd"
 LootSystem="*res://scripts/autoload/LootSystem.gd"
+DungeonData="*res://scripts/autoload/DungeonData.gd"
 SaveSystem="*res://scripts/autoload/SaveSystem.gd"
 GameState="*res://scripts/autoload/GameState.gd"
 NetworkManager="*res://scripts/autoload/NetworkManager.gd"
